@@ -203,7 +203,7 @@ impl Clone for TypeContainer {
 }
 
 #[derive(Eq, Clone)]
-pub struct TypeTupple {
+pub struct TypeTuple {
     pub s_types: HashSet<TypeContainer>,
     pub handler_id: u64,
 }
@@ -255,7 +255,7 @@ pub fn from_slice<T: for<'a> Deserialize<'a> + StrongType>(arg: &[u8]) -> Result
     Ok(res)
 }
 
-impl PartialEq<Self> for TypeTupple {
+impl PartialEq<Self> for TypeTuple {
     fn eq(&self, other: &Self) -> bool {
         let iterator_list = if self.s_types.len() < other.s_types.len() {
             self.s_types.iter()
@@ -272,7 +272,7 @@ impl PartialEq<Self> for TypeTupple {
     }
 }
 
-impl Hash for TypeTupple {
+impl Hash for TypeTuple {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.handler_id.hash(state);
     }

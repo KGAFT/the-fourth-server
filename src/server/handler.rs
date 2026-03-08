@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc};
 use async_trait::async_trait;
 use tokio::io;
-use tokio::sync::{Mutex};
+use tokio::sync::{RwLock};
 use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
@@ -31,7 +31,7 @@ pub trait Handler: Send + Sync {
         *            tx.send(...).unwrap();
         *        }
         */
-        client_meta: (SocketAddr,  &mut Option<Sender<Arc<Mutex<dyn Handler<Codec = Self::Codec>>>>>),
+        client_meta: (SocketAddr,  &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = Self::Codec>>>>>),
         s_type: Box<dyn StructureType>,
         data: BytesMut,
     ) -> Result<Vec<u8>, Vec<u8>>;

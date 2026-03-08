@@ -8,7 +8,7 @@ use tfserver::structures::s_type;
 use tfserver::structures::s_type::StructureType;
 use tfserver::structures::traffic_proc::TrafficProcessorHolder;
 use tfserver::structures::transport::Transport;
-use tfserver::tokio::sync::Mutex;
+use tfserver::tokio::sync::{Mutex, RwLock};
 use tfserver::tokio::sync::oneshot::Sender;
 use tfserver::tokio_util::bytes::BytesMut;
 use tfserver::tokio_util::codec::Framed;
@@ -22,7 +22,7 @@ impl Handler for BigPayloadHandler {
         &mut self,
         _client_meta: (
             SocketAddr,
-            &mut Option<Sender<Arc<Mutex<dyn Handler<Codec = Self::Codec>>>>>,
+            &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = Self::Codec>>>>>,
         ),
         s_type: Box<dyn StructureType>,
         mut data: BytesMut,

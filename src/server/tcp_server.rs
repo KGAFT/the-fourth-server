@@ -7,12 +7,13 @@ use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{Mutex, Notify, RwLock};
 
+use crate::codec::codec_trait::TfCodec;
 use crate::server::handler::Handler;
 use crate::structures::traffic_proc::TrafficProcessorHolder;
 use crate::structures::transport::Transport;
-use futures_util::{SinkExt};
+use futures_util::SinkExt;
 use tokio::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -22,15 +23,13 @@ use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder, Framed};
-use crate::codec::codec_trait::TfCodec;
 
 ///The request channel, used to move out tcp stream out of server control.
 ///
 ///When the stream is moved, the server does not owns it anymore.
 ///
 ///If is there need to return stream, only reconnect is available.
-pub type RequestChannel<C>
- = (
+pub type RequestChannel<C> = (
     Sender<Arc<Mutex<dyn Handler<Codec = C>>>>,
     Receiver<Arc<Mutex<dyn Handler<Codec = C>>>>,
 );
@@ -44,11 +43,12 @@ pub type RequestChannel<C>
 pub struct TcpServer<C>
 where
     C: Encoder<Bytes, Error = io::Error>
-    + Decoder<Item = BytesMut, Error = io::Error>
-    + Send
-    + Sync
-    + Clone
-    + 'static + TfCodec,
+        + Decoder<Item = BytesMut, Error = io::Error>
+        + Send
+        + Sync
+        + Clone
+        + 'static
+        + TfCodec,
 {
     router: Arc<TcpServerRouter<C>>,
     socket: Arc<TcpListener>,
@@ -61,11 +61,12 @@ where
 impl<C> TcpServer<C>
 where
     C: Encoder<Bytes, Error = io::Error>
-    + Decoder<Item = BytesMut, Error = io::Error>
-    + Send
-    + Sync
-    + Clone
-    + 'static + TfCodec,
+        + Decoder<Item = BytesMut, Error = io::Error>
+        + Send
+        + Sync
+        + Clone
+        + 'static
+        + TfCodec,
 {
     ///Creates a new instance of a server.
     ///
@@ -98,7 +99,7 @@ where
     ///Start the task for handling connections.
     ///
     ///Return the join handle, of this task.
-    pub async fn start(&mut self) -> JoinHandle<()>{
+    pub async fn start(&mut self) -> JoinHandle<()> {
         let (listener, router, shutdown_sig) = {
             (
                 self.socket.clone(),
@@ -119,7 +120,8 @@ where
                             res = listener.accept() => {
                             if res.is_ok() {
                                 let stream = res.unwrap();
-                                stream.0.set_nodelay(true).unwrap();
+                                let res = stream.0.set_nodelay(true);
+                                if res.is_ok() {
                                 let codec = codec.clone();
 
 
@@ -147,6 +149,8 @@ where
                                 }
                             }
 
+                            }
+
                         }
                     }
                     _ = shutdown_sig.notified() => break,
@@ -156,7 +160,11 @@ where
     }
 
     ///Initial accept called for every connection, on connected event.
-    async fn initial_accept(stream: TcpStream, config: Option<ServerConfig>, mut codec_setup: C) -> Option<(Transport, C)> {
+    async fn initial_accept(
+        stream: TcpStream,
+        config: Option<ServerConfig>,
+        mut codec_setup: C,
+    ) -> Option<(Transport, C)> {
         if config.is_none() {
             let mut res = Transport::plain(stream);
             if !codec_setup.initial_setup(&mut res).await {
@@ -179,9 +187,9 @@ where
     }
     ///Stops the acceptor task.
     pub fn send_stop(&self) {
-        self.shutdown_sig.notify_one();
+        self.shutdown_sig.notify_waiters();
     }
-    
+
     ///Main function for every connection
     async fn handle_connection(
         addr: SocketAddr,
@@ -190,7 +198,7 @@ where
         mut processor: TrafficProcessorHolder<C>,
     ) {
         use futures_util::SinkExt;
-        let move_sig = tokio::sync::oneshot::channel::<Arc<Mutex<dyn Handler<Codec = C>>>>();
+        let move_sig = tokio::sync::oneshot::channel::<Arc<RwLock<dyn Handler<Codec = C>>>>();
         let mut move_sig = (Some(move_sig.0), move_sig.1);
         loop {
             let meta_data: Result<Option<BytesMut>, bool> =
@@ -240,8 +248,7 @@ where
 
             if let Ok(requester) = move_sig.1.try_recv() {
                 requester
-                    .lock()
-                    .await
+                    .write().await
                     .accept_stream(addr, (stream, processor.clone()))
                     .await;
                 return;

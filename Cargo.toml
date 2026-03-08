@@ -1,6 +1,6 @@
 [package]
 name = "the-fourth-server"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/KGAFT/the-fourth-server"
@@ -27,7 +27,7 @@ tokio-util = {version = "0.7", features = ["codec"]}
 futures-util = { version = "0.3", features = ["sink"] }
 async-trait = { version = "0.1" }
 tokio-rustls = "0.26.4"
-
+futures = "0.3"
 
 [profile.release]
 opt-level = 3

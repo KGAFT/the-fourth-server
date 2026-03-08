@@ -1,17 +1,18 @@
 use std::collections::{HashMap, HashSet};
 use std::net::{SocketAddr};
 use std::ops::Deref;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc};
+use futures_util::FutureExt;
 use tokio::io;
-use tokio::sync::{Mutex};
+use tokio::sync::{RwLock};
 use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 use crate::codec::codec_trait::TfCodec;
 use crate::server::handler::Handler;
 use crate::structures::s_type;
-use crate::structures::s_type::{HandlerMetaAns, HandlerMetaReq, PacketMeta, ServerError, ServerErrorEn, StructureType, SystemSType, TypeContainer, TypeTupple};
+use crate::structures::s_type::{HandlerMetaAns, HandlerMetaReq, PacketMeta, ServerError, ServerErrorEn, StructureType, SystemSType, TypeContainer, TypeTuple};
 use crate::structures::s_type::ServerErrorEn::InternalError;
 
 
@@ -20,9 +21,9 @@ use crate::structures::s_type::ServerErrorEn::InternalError;
 pub struct TcpServerRouter<C>
 where
     C:  Encoder<Bytes, Error = io::Error> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send  + Sync+ 'static +TfCodec {
-    routes: Arc<HashMap<TypeTupple, Arc<Mutex<dyn Handler<Codec = C>>>>>,
+    routes: Arc<HashMap<TypeTuple, Arc<RwLock<dyn Handler<Codec = C>>>>>,
     routes_text_names: Arc<HashMap<String, u64>>,
-    routes_to_add: Vec<(TypeTupple, (Arc<Mutex<dyn Handler<Codec = C>>>, String))>,
+    routes_to_add: Vec<(TypeTuple, (Arc<RwLock<dyn Handler<Codec = C>>>, String))>,
     router_incremental: u64,
     routes_commited: bool,
     user_s_type: Box<dyn StructureType>,
@@ -52,7 +53,7 @@ where
     /// 's_type' handled structure types by current handler.
     pub fn add_route(
         &mut self,
-        handler: Arc<Mutex<dyn Handler<Codec = C>>>,
+        handler: Arc<RwLock<dyn Handler<Codec = C>>>,
         handler_name: String,
         mut s_types: Vec<Box<dyn StructureType>>,
     ) {
@@ -63,7 +64,7 @@ where
         while !s_types.is_empty(){
             s_typess.insert(TypeContainer::new(s_types.pop().unwrap()));
         }
-        let types_tupple = TypeTupple {
+        let types_tupple = TypeTuple {
             s_types: s_typess,
             handler_id: self.router_incremental,
         };
@@ -92,7 +93,7 @@ where
     }
 
 
-    pub fn get_routes(&self) -> Arc<HashMap<TypeTupple, Arc<Mutex<dyn Handler<Codec = C>>>>> {
+    pub fn get_routes(&self) -> Arc<HashMap<TypeTuple, Arc<RwLock<dyn Handler<Codec = C>>>>> {
         self.routes.clone()
     }
 
@@ -101,24 +102,24 @@ where
         &self,
         meta: BytesMut,
         payload: BytesMut,
-        client_meta: (SocketAddr,  &mut Option<Sender<Arc<Mutex<dyn Handler<Codec = C>>>>>),
+        client_meta: (SocketAddr,  &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = C>>>>>),
     ) -> Result<Vec<u8>, ServerError> {
         // Try to deserialize normal PacketMeta
         if let Ok(meta_pack) = s_type::from_slice::<PacketMeta>(&meta) {
             let s_type = self.user_s_type.get_deserialize_function().deref()(meta_pack.s_type_req);
-            let key = TypeTupple {
+            let key = TypeTuple {
                 s_types: HashSet::from([TypeContainer::new(s_type.clone_unique())]),
                 handler_id: meta_pack.handler_id,
             };
 
             let handler = self.routes.get(&key).ok_or(ServerError::new(ServerErrorEn::NoSuchHandler(None)))?;
-            let mut handler_lock = handler.lock().await;
-            let res = catch_unwind(AssertUnwindSafe(async || {
-                handler_lock.serve_route(client_meta, s_type, payload).await
-            }));
-
+            let mut handler_lock = handler.write().await;
+            let res = AssertUnwindSafe(
+                handler_lock.serve_route(client_meta, s_type, payload)
+            )
+                .catch_unwind().await;
             return match res {
-                Ok(data) => match data.await{
+                Ok(data) => match data{
                     Ok(data) => Ok(data),
                     Err(err) => {Err(ServerError::new(ServerErrorEn::InternalError(Some(err.to_vec()))))}
                 },
