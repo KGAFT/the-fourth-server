@@ -4,11 +4,9 @@ use std::ops::Deref;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc};
 use futures_util::FutureExt;
-use tokio::io;
 use tokio::sync::{RwLock};
 use tokio::sync::oneshot::Sender;
-use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{Decoder, Encoder};
+use tokio_util::bytes::{BytesMut};
 use crate::codec::codec_trait::TfCodec;
 use crate::server::handler::Handler;
 use crate::structures::s_type;
@@ -20,7 +18,7 @@ use crate::structures::s_type::ServerErrorEn::InternalError;
 ///Handles the every data route destination
 pub struct TcpServerRouter<C>
 where
-    C:  Encoder<Bytes, Error = io::Error> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send  + Sync+ 'static +TfCodec {
+    C: TfCodec {
     routes: Arc<HashMap<TypeTuple, Arc<RwLock<dyn Handler<Codec = C>>>>>,
     routes_text_names: Arc<HashMap<String, u64>>,
     routes_to_add: Vec<(TypeTuple, (Arc<RwLock<dyn Handler<Codec = C>>>, String))>,
@@ -31,7 +29,7 @@ where
 
 impl<C> TcpServerRouter<C>
 where
-    C: Encoder<Bytes, Error = io::Error> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send  + Sync + 'static +TfCodec {
+    C: TfCodec {
     
     ///Returns the new instance of router
     ///

@@ -1,11 +1,10 @@
 use std::net::SocketAddr;
 use std::sync::{Arc};
 use async_trait::async_trait;
-use tokio::io;
 use tokio::sync::{RwLock};
 use tokio::sync::oneshot::Sender;
-use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::bytes::{BytesMut};
+use tokio_util::codec::{Framed};
 use crate::codec::codec_trait::TfCodec;
 use crate::structures::s_type::StructureType;
 use crate::structures::traffic_proc::TrafficProcessorHolder;
@@ -14,7 +13,7 @@ use crate::structures::transport::Transport;
 #[async_trait]
 ///The server handler trait. Used for handling data from client/
 pub trait Handler: Send + Sync {
-    type Codec: Encoder<Bytes, Error = io::Error> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send  + Sync + 'static + TfCodec;
+    type Codec:  TfCodec;
     ///The serve_route called by router, when the new data arrived and designated to registered to this handler structure_types.
     ///
     /// 'client_meta' is client info, and signal for requesting to move stream.

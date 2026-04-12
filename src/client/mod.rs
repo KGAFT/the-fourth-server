@@ -14,7 +14,7 @@ use tokio::sync::{mpsc};
 use tokio_rustls::TlsConnector;
 use tokio_rustls::rustls::ClientConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::codec::{ Framed};
 use crate::codec::codec_trait::TfCodec;
 
 #[derive(Debug)]
@@ -94,13 +94,7 @@ impl ClientConnect {
     /// 'client_config' the tls config.
     /// 'max_request_in_time' max amount of requests that can be dispatched in the same time.
     pub async fn new<
-        C: Encoder<Bytes, Error = io::Error>
-            + Decoder<Item = BytesMut, Error = io::Error>
-            + Clone
-            + Send
-            + Sync
-            + 'static
-            + TfCodec,
+        C: TfCodec,
     >(
         server_name: String,
         connection_dest: String,
@@ -147,13 +141,7 @@ impl ClientConnect {
     }
     
     fn connection_main<
-        C: Encoder<Bytes, Error = io::Error>
-            + Decoder<Item = BytesMut, Error = io::Error>
-            + Clone
-            + Send
-            + Sync
-            + 'static
-        +TfCodec,
+        C: TfCodec,
     >(
         mut socket: Framed<Transport, C>,
         processor: Option<TrafficProcessorHolder<C>>,
@@ -174,13 +162,7 @@ impl ClientConnect {
     }
 
     async fn process_request<
-        C: Encoder<Bytes, Error = io::Error>
-            + Decoder<Item = BytesMut, Error = io::Error>
-            + Clone
-            + Send
-            + Sync
-            + 'static
-        +TfCodec,
+        C: TfCodec,
     >(
         request: ClientRequest,
         socket: &mut Framed<Transport, C>,
@@ -231,13 +213,7 @@ impl ClientConnect {
 }
 
 pub async fn wait_for_data<
-    C: Encoder<Bytes, Error = io::Error>
-        + Decoder<Item = BytesMut, Error = io::Error>
-        + Clone
-        + Send
-        + Sync
-        + 'static
-    +TfCodec,
+    C: TfCodec,
 >(
     socket: &mut Framed<Transport, C>,
 ) -> Result<BytesMut, ClientError> {

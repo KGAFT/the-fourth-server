@@ -6,8 +6,7 @@ use crate::structures::transport::Transport;
 use futures_util::SinkExt;
 use std::collections::HashMap;
 use std::io;
-use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::codec::{Framed};
 use crate::codec::codec_trait::TfCodec;
 
 #[derive(Debug)]
@@ -41,13 +40,7 @@ impl TargetRouter {
     }
     ///Returns the id of handler, but may request id from server side.
     pub async fn request_route<
-        C: Encoder<Bytes, Error = io::Error>
-        + Decoder<Item = BytesMut, Error = io::Error>
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        +TfCodec,
+        C: TfCodec,
     >(
         &mut self,
         route: &str,
@@ -64,13 +57,7 @@ impl TargetRouter {
     }
 
     async fn request_route_from_server<
-        C: Encoder<Bytes, Error = io::Error>
-        + Decoder<Item = BytesMut, Error = io::Error>
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        +TfCodec,
+        C: TfCodec,
     >(
         name: &str,
         stream: &mut Framed<Transport, C>,

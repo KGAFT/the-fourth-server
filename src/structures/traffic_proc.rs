@@ -1,8 +1,8 @@
-use async_trait::async_trait;
-use tokio::io;
-use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use crate::codec::codec_trait::TfCodec;
 use crate::structures::transport::Transport;
+use async_trait::async_trait;
+use tokio_util::bytes::{BytesMut};
+use tokio_util::codec::{ Framed};
 
 #[async_trait]
 ///A traffic processor trait, that applied to all streams. Processes all stream. If you need setup by each specific stream, use codecs instead
@@ -10,21 +10,27 @@ pub trait TrafficProcess: Send + Sync {
     type Codec;
     ///The routine that defines if we can connect stream or not
     async fn initial_connect(&mut self, source: &mut Transport) -> bool;
-     ///The routine that defines if we can connect stream or not, but when framed was setted up
-    async fn initial_framed_connect(&mut self, source: &mut Framed<Transport, Self::Codec>) -> bool;
+    ///The routine that defines if we can connect stream or not, but when framed was setted up
+    async fn initial_framed_connect(&mut self, source: &mut Framed<Transport, Self::Codec>)
+    -> bool;
     ///Process every traffic that is handled by server
     async fn post_process_traffic(&mut self, data: Vec<u8>) -> Vec<u8>;
-     ///Process every traffic that is handled by server
+    ///Process every traffic that is handled by server
     async fn pre_process_traffic(&mut self, data: BytesMut) -> BytesMut;
     fn clone(&self) -> Box<dyn TrafficProcess<Codec = Self::Codec>>;
 }
 
-pub struct TrafficProcessorHolder<C> where C: Encoder<Bytes> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send + 'static
+pub struct TrafficProcessorHolder<C>
+where
+    C: TfCodec,
 {
     processors: Vec<Box<dyn TrafficProcess<Codec = C>>>,
 }
 
-impl<C> Clone for TrafficProcessorHolder<C>  where C: Encoder<Bytes> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send + 'static{
+impl<C> Clone for TrafficProcessorHolder<C>
+where
+    C: TfCodec,
+{
     fn clone(&self) -> Self {
         let mut processors = Vec::new();
         self.processors
@@ -35,8 +41,10 @@ impl<C> Clone for TrafficProcessorHolder<C>  where C: Encoder<Bytes> + Decoder<I
     }
 }
 
-impl<C> TrafficProcessorHolder<C> where
-C: Encoder<Bytes> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send + 'static {
+impl<C> TrafficProcessorHolder<C>
+where
+    C: TfCodec,
+{
     pub fn new() -> Self {
         TrafficProcessorHolder { processors: vec![] }
     }
@@ -44,9 +52,9 @@ C: Encoder<Bytes> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send +
         self.processors.push(processor);
     }
 
-    pub async fn initial_connect(&mut self, source: &mut Transport) -> bool{
+    pub async fn initial_connect(&mut self, source: &mut Transport) -> bool {
         for processor in self.processors.iter_mut() {
-            if !processor.as_mut().initial_connect(source).await{
+            if !processor.as_mut().initial_connect(source).await {
                 return false;
             }
         }
@@ -55,7 +63,7 @@ C: Encoder<Bytes> + Decoder<Item = BytesMut, Error = io::Error> + Clone + Send +
 
     pub async fn initial_framed_connect(&mut self, source: &mut Framed<Transport, C>) -> bool {
         for processor in self.processors.iter_mut() {
-            if !processor.as_mut().initial_framed_connect(source).await{
+            if !processor.as_mut().initial_framed_connect(source).await {
                 return false;
             }
         }

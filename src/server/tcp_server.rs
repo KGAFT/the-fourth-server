@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::codec::{Framed};
 
 ///The request channel, used to move out tcp stream out of server control.
 ///
@@ -42,13 +42,7 @@ pub type RequestChannel<C> = (
 
 pub struct TcpServer<C>
 where
-    C: Encoder<Bytes, Error = io::Error>
-        + Decoder<Item = BytesMut, Error = io::Error>
-        + Send
-        + Sync
-        + Clone
-        + 'static
-        + TfCodec,
+    C: TfCodec,
 {
     router: Arc<TcpServerRouter<C>>,
     socket: Arc<TcpListener>,
@@ -60,13 +54,7 @@ where
 
 impl<C> TcpServer<C>
 where
-    C: Encoder<Bytes, Error = io::Error>
-        + Decoder<Item = BytesMut, Error = io::Error>
-        + Send
-        + Sync
-        + Clone
-        + 'static
-        + TfCodec,
+    C: TfCodec,
 {
     ///Creates a new instance of a server.
     ///
