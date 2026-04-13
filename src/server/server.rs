@@ -1,4 +1,4 @@
-use crate::server::server_router::TcpServerRouter;
+use crate::server::server_router::TfServerRouter;
 use crate::structures::s_type;
 use crate::structures::s_type::ServerErrorEn::InternalError;
 use crate::structures::s_type::{PacketMeta, ServerErrorEn};
@@ -49,11 +49,11 @@ pub enum ServerMode {
 ///
 ///Recommended default codec is LengthDelimitedCodec, from the server codec module.
 
-pub struct TcpServer<C>
+pub struct TfServer<C>
 where
     C: TfCodec,
 {
-    router: Arc<TcpServerRouter<C>>,
+    router: Arc<TfServerRouter<C>>,
     socket: Arc<TcpListener>,
     shutdown_sig: Arc<Notify>,
     processor: Option<TrafficProcessorHolder<C>>,
@@ -62,7 +62,7 @@ where
     mode: ServerMode,
 }
 
-impl<C> TcpServer<C>
+impl<C> TfServer<C>
 where
     C: TfCodec,
 {
@@ -75,7 +75,7 @@ where
     /// 'config' optional config for tls connection, when None the tls is not using, when some all connections are passed behind tls.
     pub async fn new(
         bind_address: String,
-        router: Arc<TcpServerRouter<C>>,
+        router: Arc<TfServerRouter<C>>,
         processor: Option<TrafficProcessorHolder<C>>,
         codec: C,
         config: Option<ServerConfig>,
@@ -195,7 +195,7 @@ where
     async fn handle_connection(
         addr: SocketAddr,
         mut stream: Framed<Transport, C>,
-        router: &TcpServerRouter<C>,
+        router: &TfServerRouter<C>,
         mut processor: TrafficProcessorHolder<C>,
     ) {
         use futures_util::SinkExt;

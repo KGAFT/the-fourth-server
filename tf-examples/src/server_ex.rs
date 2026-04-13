@@ -5,8 +5,8 @@ mod server_example;
 use std::sync::Arc;
 use tfserver::codec::length_delimited::LengthDelimitedCodec;
 use tfserver::server::server::ServerMode::{Tcp, WebSocket};
-use tfserver::server::server_router::TcpServerRouter;
-use tfserver::server::server::TcpServer;
+use tfserver::server::server_router::TfServerRouter;
+use tfserver::server::server::TfServer;
 use tfserver::tokio;
 use tfserver::tokio::sync::{Mutex, RwLock};
 use crate::s_type_example::ExampleSType;
@@ -21,7 +21,7 @@ pub async fn main(){
     let manual_handler = Arc::new(RwLock::new(ManualHandler{self_ref: None}));
     manual_handler.write().await.self_ref = Some(manual_handler.clone());
 
-    let mut router: TcpServerRouter<LengthDelimitedCodec> = TcpServerRouter::new(Box::new(ExampleSType::TestResponse));
+    let mut router: TfServerRouter<LengthDelimitedCodec> = TfServerRouter::new(Box::new(ExampleSType::TestResponse));
     router.add_route(Arc::new(RwLock::new(test_handler)), "TEST_HANDLER".to_string(), vec![Box::new(ExampleSType::TestMessage), Box::new(ExampleSType::TestResponse)]);
     router.add_route(Arc::new(RwLock::new(big_payload_handler)), "BIG_PAYLOAD".to_string(), vec![Box::new(ExampleSType::ExpensiveMessage), Box::new(ExampleSType::ExpensiveResponse)]);
     router.add_route(manual_handler, "MANUAL_HANDLER".to_string(), vec![Box::new(ExampleSType::ManualHandlerRequest)]);
@@ -29,7 +29,7 @@ pub async fn main(){
     router.commit_routes();
     let router = Arc::new(router);
 
-    let mut server = TcpServer::new("0.0.0.0:9973".to_string(), router, None, LengthDelimitedCodec::new(1024 * 1024 * 1024), None, WebSocket).await;
+    let mut server = TfServer::new("0.0.0.0:9973".to_string(), router, None, LengthDelimitedCodec::new(1024 * 1024 * 1024), None, WebSocket).await;
     server.start().await;
     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
     server.send_stop();

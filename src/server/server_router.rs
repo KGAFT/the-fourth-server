@@ -16,7 +16,7 @@ use crate::structures::s_type::ServerErrorEn::InternalError;
 
 ///Tcp server router.
 ///Handles the every data route destination
-pub struct TcpServerRouter<C>
+pub struct TfServerRouter<C>
 where
     C: TfCodec {
     routes: Arc<HashMap<TypeTuple, Arc<RwLock<dyn Handler<Codec = C>>>>>,
@@ -27,7 +27,7 @@ where
     user_s_type: Box<dyn StructureType>,
 }
 
-impl<C> TcpServerRouter<C>
+impl<C> TfServerRouter<C>
 where
     C: TfCodec {
     
