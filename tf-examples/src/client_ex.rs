@@ -1,7 +1,7 @@
 use crate::s_type_example::{ExampleSType, ExpensiveMsg, ExpensiveResponse, TestMsg};
 use rand::{Rng, random};
 use std::time::{Duration, Instant};
-use tfserver::client::{ClientConnect, ClientRequest, DataRequest, HandlerInfo};
+use tfserver::client::{ClientConnect, ClientMode, ClientRequest, DataRequest, HandlerInfo};
 use tfserver::codec::length_delimited::LengthDelimitedCodec;
 use tfserver::structures::s_type;
 use tfserver::tokio;
@@ -66,8 +66,10 @@ async fn main() {
         "127.0.0.1:9973".to_string(),
         None,
         LengthDelimitedCodec::new(1024 * 1024 * 1024),
-        None,
+        ClientMode::WebSocket {url: "ws://127.0.0.1:9973/ws".into()  },
+        //ClientMode::Tcp {client_config: None},
         2500,
+
     )
     .await
     .expect("Connecting to server failed");

@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{Framed};
+use tokio_util::codec::Framed;
 
 ///The request channel, used to move out tcp stream out of server control.
 ///
@@ -33,6 +33,15 @@ pub type RequestChannel<C> = (
     Sender<Arc<Mutex<dyn Handler<Codec = C>>>>,
     Receiver<Arc<Mutex<dyn Handler<Codec = C>>>>,
 );
+
+
+#[derive(Clone)]
+pub enum ServerMode {
+    /// Plain TCP or TLS
+    Tcp,
+    /// WebSocket upgrade over plain TCP or TLS
+    WebSocket,
+}
 
 ///Base binary tcp server.
 ///
@@ -50,6 +59,7 @@ where
     processor: Option<TrafficProcessorHolder<C>>,
     codec: C,
     config: Option<ServerConfig>,
+    mode: ServerMode,
 }
 
 impl<C> TcpServer<C>
@@ -69,6 +79,7 @@ where
         processor: Option<TrafficProcessorHolder<C>>,
         codec: C,
         config: Option<ServerConfig>,
+        mode: ServerMode,
     ) -> Self {
         Self {
             router,
@@ -81,6 +92,7 @@ where
             processor,
             codec,
             config,
+            mode
         }
     }
 
@@ -88,13 +100,11 @@ where
     ///
     ///Return the join handle, of this task.
     pub async fn start(&mut self) -> JoinHandle<()> {
-        let (listener, router, shutdown_sig) = {
-            (
-                self.socket.clone(),
-                self.router.clone(),
-                self.shutdown_sig.clone(),
-            )
-        };
+        let (listener, router, shutdown_sig) = (
+            self.socket.clone(),
+            self.router.clone(),
+            self.shutdown_sig.clone(),
+        );
         let mut processor = if let Some(proc) = self.processor.take() {
             proc
         } else {
@@ -102,47 +112,38 @@ where
         };
         let codec = self.codec.clone();
         let config = self.config.clone();
+        let mode = self.mode.clone();   // ← new
+
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                            res = listener.accept() => {
-                            if res.is_ok() {
-                                let stream = res.unwrap();
-                                let res = stream.0.set_nodelay(true);
-                                if res.is_ok() {
-                                let codec = codec.clone();
+                res = listener.accept() => {
+                    if let Ok((stream, addr)) = res {
+                        let _ = stream.set_nodelay(true);
+                        let codec = codec.clone();
+                        let mode = mode.clone();    // ← new
 
+                        // ← swapped to new unified accept
+                        let transport = Self::initial_accept(stream, config.clone(), codec, &mode).await;
 
-                                let transport = Self::initial_accept(stream.0, config.clone(), codec).await;
-                                if let Some(mut transport) = transport {
-                                 if processor.initial_connect(&mut transport.0).await {
-                                    let mut framed = Framed::new(transport.0, transport.1);
-
+                        if let Some(mut transport) = transport {
+                            if processor.initial_connect(&mut transport.0).await {
+                                let mut framed = Framed::new(transport.0, transport.1);
                                 if processor.initial_framed_connect(&mut framed).await {
                                     let router = router.clone();
                                     let prc_clone = processor.clone();
-
                                     tokio::spawn(async move {
-                                        Self::handle_connection(
-                                            stream.1,
-                                            framed,
-                                            router.as_ref(),
-                                            prc_clone,
-                                        )
-                                        .await;
+                                        Self::handle_connection(addr, framed, router.as_ref(), prc_clone).await;
                                     });
                                 }
-                                } else {
-                                    let _ = transport.0.shutdown().await;
-                                }
+                            } else {
+                                let _ = transport.0.shutdown().await;
                             }
-
-                            }
-
                         }
                     }
-                    _ = shutdown_sig.notified() => break,
                 }
+                _ = shutdown_sig.notified() => break,
+            }
             }
         })
     }
@@ -152,26 +153,38 @@ where
         stream: TcpStream,
         config: Option<ServerConfig>,
         mut codec_setup: C,
+        mode: &ServerMode,
     ) -> Option<(Transport, C)> {
-        if config.is_none() {
-            let mut res = Transport::plain(stream);
-            if !codec_setup.initial_setup(&mut res).await {
-                return None;
+        let mut transport = match &config {
+            None => Transport::plain(stream),
+            Some(cfg) => {
+                let acceptor = TlsAcceptor::from(Arc::new(cfg.clone()));
+                match acceptor.accept(stream).await {
+                    Ok(tls) => Transport::tls_server(tls),
+                    Err(_) => return None,
+                }
             }
-            return Some((res, codec_setup));
-        } else {
-            let cfg = config.unwrap();
-            let acceptor = TlsAcceptor::from(Arc::new(cfg));
-            let res = acceptor.accept(stream).await;
-            if res.is_err() {
-                return None;
+        };
+
+
+        let mut transport = match mode {
+            ServerMode::Tcp => transport,
+            ServerMode::WebSocket => {
+                match Transport::accept_websocket(transport).await {
+                    Ok(ws_stream) => ws_stream,
+                    Err(e) => {
+                        eprintln!("WebSocket handshake failed: {e}");
+                        return None;
+                    }
+                }
             }
-            let mut res = Transport::tls_server(res.unwrap());
-            if !codec_setup.initial_setup(&mut res).await {
-                return None;
-            }
-            return Some((res, codec_setup));
+        };
+
+        if !codec_setup.initial_setup(&mut transport).await {
+            return None;
         }
+
+        Some((transport, codec_setup))
     }
     ///Stops the acceptor task.
     pub fn send_stop(&self) {
@@ -236,7 +249,8 @@ where
 
             if let Ok(requester) = move_sig.1.try_recv() {
                 requester
-                    .write().await
+                    .write()
+                    .await
                     .accept_stream(addr, (stream, processor.clone()))
                     .await;
                 return;

@@ -17,6 +17,15 @@ use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{ Framed};
 use crate::codec::codec_trait::TfCodec;
 
+#[derive(Clone)]
+pub enum ClientMode {
+    /// Raw TCP, optionally wrapped in TLS
+    Tcp { client_config: Option<ClientConfig> },
+    /// WebSocket — for environments without raw TCP access (e.g. WASM)
+    /// 'url' full ws:// or wss:// URL, e.g. "wss://example.com:9000/ws"
+    WebSocket { url: String },
+}
+
 #[derive(Debug)]
 pub enum ClientError {
     Io(io::Error),
@@ -93,43 +102,55 @@ impl ClientConnect {
     /// 'codec' the connection codec. Recommended base LengthDelimitedCodec from module codec.
     /// 'client_config' the tls config.
     /// 'max_request_in_time' max amount of requests that can be dispatched in the same time.
-    pub async fn new<
-        C: TfCodec,
-    >(
+    pub async fn new<C: TfCodec>(
         server_name: String,
-        connection_dest: String,
+        connection_dest: String, 
         processor: Option<TrafficProcessorHolder<C>>,
         mut codec: C,
-        client_config: Option<ClientConfig>,
+        mode: ClientMode,          // ← replaces client_config
         max_request_in_time: usize,
     ) -> Result<Self, ClientError> {
-        let socket = TcpStream::connect(connection_dest).await?;
-        socket.set_nodelay(true)?;
+        let mut transport = Self::connect(server_name, connection_dest, &mode).await?;
 
-        let mut transport = if let Some(client_config) = client_config {
-            let connector = TlsConnector::from(Arc::new(client_config));
-            let domain = server_name
-                .try_into()
-                .map_err(|_| ClientError::Tls("Invalid server name".into()))?;
-
-            let tls = connector
-                .connect(domain, socket)
-                .await
-                .map_err(|e| ClientError::Tls(e.to_string()))?;
-
-            Transport::tls_client(tls)
-        } else {
-            Transport::plain(socket)
-        };
         if !codec.initial_setup(&mut transport).await {
             panic!("Failed to initial setup transport");
         }
+
         let framed = Framed::new(transport, codec);
         let (tx, rx) = mpsc::channel(max_request_in_time);
-
         Self::connection_main(framed, processor, rx);
 
         Ok(Self { tx })
+    }
+    async fn connect(
+        server_name: String,
+        connection_dest: String,
+        mode: &ClientMode,
+    ) -> Result<Transport, ClientError> {
+        match mode {
+            ClientMode::Tcp { client_config } => {
+                let socket = TcpStream::connect(&connection_dest).await?;
+                socket.set_nodelay(true)?;
+
+                if let Some(cfg) = client_config {
+                    let connector = TlsConnector::from(Arc::new(cfg.clone()));
+                    let domain = server_name
+                        .try_into()
+                        .map_err(|_| ClientError::Tls("Invalid server name".into()))?;
+                    let tls = connector
+                        .connect(domain, socket)
+                        .await
+                        .map_err(|e| ClientError::Tls(e.to_string()))?;
+                    Ok(Transport::tls_client(tls))
+                } else {
+                    Ok(Transport::plain(socket))
+                }
+            }
+
+            ClientMode::WebSocket { url } => {
+                Transport::connect(url).await.map_err(|e| ClientError::Tls(e.to_string()))
+            }
+        }
     }
 
     ///Dispatches the request.

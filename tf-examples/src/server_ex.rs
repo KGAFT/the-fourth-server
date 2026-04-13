@@ -4,8 +4,9 @@ mod server_example;
 
 use std::sync::Arc;
 use tfserver::codec::length_delimited::LengthDelimitedCodec;
+use tfserver::server::server::ServerMode::{Tcp, WebSocket};
 use tfserver::server::server_router::TcpServerRouter;
-use tfserver::server::tcp_server::TcpServer;
+use tfserver::server::server::TcpServer;
 use tfserver::tokio;
 use tfserver::tokio::sync::{Mutex, RwLock};
 use crate::s_type_example::ExampleSType;
@@ -28,7 +29,7 @@ pub async fn main(){
     router.commit_routes();
     let router = Arc::new(router);
 
-    let mut server = TcpServer::new("0.0.0.0:9973".to_string(), router, None, LengthDelimitedCodec::new(1024 * 1024 * 1024), None).await;
+    let mut server = TcpServer::new("0.0.0.0:9973".to_string(), router, None, LengthDelimitedCodec::new(1024 * 1024 * 1024), None, WebSocket).await;
     server.start().await;
     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
     server.send_stop();
