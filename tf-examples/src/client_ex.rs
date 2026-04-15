@@ -66,8 +66,8 @@ async fn main() {
         "127.0.0.1:9973".to_string(),
         None,
         LengthDelimitedCodec::new(1024 * 1024 * 1024),
-        ClientMode::WebSocket {url: "ws://127.0.0.1:9973/ws".into()  },
-        //ClientMode::Tcp {client_config: None},
+       // ClientMode::WebSocket {url: "ws://127.0.0.1:9973/ws".into()  },
+        ClientMode::Tcp {client_config: None},
         2500,
 
     )
