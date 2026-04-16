@@ -29,7 +29,7 @@ pub async fn main(){
     router.commit_routes();
     let router = Arc::new(router);
 
-    let mut server = TfServer::new("0.0.0.0:9973".to_string(), router, None, LengthDelimitedCodec::new(1024 * 1024 * 1024), None, Tcp).await;
+    let mut server = TfServer::new("0.0.0.0:9973".to_string(), router, None, LengthDelimitedCodec::new(1024 * 1024 * 1024), None, WebSocket).await;
     server.start().await;
     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
     server.send_stop();
