@@ -155,7 +155,7 @@ where
         mut codec_setup: C,
         mode: &ServerMode,
     ) -> Option<(Transport, C)> {
-        let mut transport = match &config {
+        let transport = match &config {
             None => Transport::plain(stream),
             Some(cfg) => {
                 let acceptor = TlsAcceptor::from(Arc::new(cfg.clone()));

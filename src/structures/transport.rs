@@ -2,7 +2,7 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use async_tungstenite::{ByteReader, ByteWriter};
-use futures_util::{AsyncReadExt, StreamExt};
+use futures_util::{StreamExt};
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
@@ -11,7 +11,6 @@ use tokio::net::TcpStream;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio_rustls::{client::TlsStream as ClientTlsStream, server::TlsStream as ServerTlsStream};
 use tokio_tungstenite::{accept_async, connect_async};
-use ws_stream_wasm::WsMeta;
 
 
 pub struct Transport {
