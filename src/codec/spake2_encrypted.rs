@@ -14,6 +14,7 @@ use hkdf::Hkdf;
 use sha2::Sha256;
 use spake2::{Ed25519Group, Identity, Password, Spake2};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use aead::AeadInPlace;
 use tokio_util::codec::{Decoder, Encoder, Framed, LengthDelimitedCodec};
 
@@ -141,6 +142,12 @@ pub trait ClientCredentialProvider: Send+Sync+'static {
 pub struct SessionKeys {
     pub send: Aes256Gcm,
     pub recv: Aes256Gcm,
+
+    /// Local outbound packet counter
+    send_counter: AtomicU64,
+
+    /// Highest accepted inbound counter
+    recv_counter: AtomicU64,
 }
 
 
@@ -164,58 +171,111 @@ impl aead::Buffer for BytesMutBuffer {
         self.0.truncate(len);
     }
 }
+impl SessionKeys {
 
-impl SessionKeys{
-    fn derive_session_keys(shared: &[u8], is_server: bool) -> Option<Self> {
-        let hk = Hkdf::<Sha256>::new(None, shared);
+        fn derive_session_keys(shared: &[u8], is_server: bool) -> Option<Self> {
+            let hk = Hkdf::<Sha256>::new(None, shared);
 
-        let mut key_a = [0u8; 32];
-        let mut key_b = [0u8; 32];
+            let mut key_a = [0u8; 32];
+            let mut key_b = [0u8; 32];
 
-        hk.expand(b"aes-tunnel-key-a", &mut key_a).ok()?;
-        hk.expand(b"aes-tunnel-key-b", &mut key_b).ok()?;
+            hk.expand(b"aes-tunnel-key-a", &mut key_a).ok()?;
+            hk.expand(b"aes-tunnel-key-b", &mut key_b).ok()?;
 
-        let (send_key, recv_key) = if is_server {
-            (key_b, key_a) // server sends on B, receives on A
-        } else {
-            (key_a, key_b) // client sends on A, receives on B
-        };
+            let (send_key, recv_key) = if is_server {
+                (key_b, key_a)
+            } else {
+                (key_a, key_b)
+            };
 
-        Some(Self {
-            send: Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&send_key)),
-            recv: Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&recv_key)),
-        })
-    }
-
-
-    pub fn seal_in_place(&self, buf: &mut BytesMut) -> Option<()> {
-        let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
-        let mut wrapped = BytesMutBuffer(buf.split());
-
-        self.send.encrypt_in_place(&nonce, b"", &mut wrapped).ok()?;
-
-        buf.clear();
-        buf.reserve(12 + wrapped.0.len());
-        buf.extend_from_slice(&nonce);
-        buf.unsplit(wrapped.0);
-        Some(())
-    }
-
-    pub fn open_in_place(&self, buf: &mut BytesMut) -> Option<()> {
-        const NONCE_LEN: usize = 12;
-        if buf.len() < NONCE_LEN {
-            return None;
+            Some(Self {
+                send: Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&send_key)),
+                recv: Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&recv_key)),
+                send_counter: AtomicU64::new(1),
+                recv_counter: AtomicU64::new(0),
+            })
         }
-        let nonce: [u8; 12] = buf[..NONCE_LEN].try_into().ok()?;
-        let ciphertext = buf.split_off(NONCE_LEN);
-        let mut wrapped = BytesMutBuffer(ciphertext);
 
-        self.recv.decrypt_in_place(&Nonce::from(nonce), b"", &mut wrapped).ok()?;
+        #[inline]
+        fn nonce_from_counter(counter: u64) -> [u8; 12] {
+            let mut nonce = [0u8; 12];
+            nonce[4..].copy_from_slice(&counter.to_be_bytes());
+            nonce
+        }
 
-        *buf = wrapped.0;
-        Some(())
+        pub fn seal_in_place(&self, buf: &mut BytesMut) -> Option<()> {
+            let counter = self.send_counter.fetch_add(1, Ordering::Relaxed);
+
+            if counter == u64::MAX {
+                return None;
+            }
+
+            let counter_bytes = counter.to_be_bytes();
+            let nonce_bytes = Self::nonce_from_counter(counter);
+            let nonce = Nonce::from_slice(&nonce_bytes);
+
+            let mut wrapped = BytesMutBuffer(buf.split());
+
+            // counter is included in AAD so any wire tampering fails tag verification
+            self.send
+                .encrypt_in_place(nonce, &counter_bytes, &mut wrapped)
+                .ok()?;
+
+            buf.clear();
+            buf.reserve(8 + wrapped.0.len());
+            buf.extend_from_slice(&counter_bytes);
+            buf.unsplit(wrapped.0);
+
+            Some(())
+        }
+
+        pub fn open_in_place(&self, buf: &mut BytesMut) -> Option<()> {
+            const COUNTER_LEN: usize = 8;
+
+            if buf.len() < COUNTER_LEN {
+                return None;
+            }
+
+            let counter = u64::from_be_bytes(buf[..COUNTER_LEN].try_into().ok()?);
+
+            if counter == u64::MAX {
+                return None;
+            }
+
+            // compare-exchange loop — prevents TOCTOU race if called concurrently
+            let mut last = self.recv_counter.load(Ordering::Acquire);
+            loop {
+                if counter <= last {
+                    return None; // replay or reorder
+                }
+                match self.recv_counter.compare_exchange_weak(
+                    last,
+                    counter,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                ) {
+                    Ok(_) => break,
+                    Err(current) => last = current, // another thread advanced it, retry
+                }
+            }
+
+            let counter_bytes = counter.to_be_bytes();
+            let nonce_bytes = Self::nonce_from_counter(counter);
+            let nonce = Nonce::from_slice(&nonce_bytes);
+
+            let ciphertext = buf.split_off(COUNTER_LEN);
+            let mut wrapped = BytesMutBuffer(ciphertext);
+
+            // AAD must match what seal used, otherwise tag fails
+            self.recv
+                .decrypt_in_place(nonce, &counter_bytes, &mut wrapped)
+                .ok()?;
+
+            *buf = wrapped.0;
+
+            Some(())
+        }
     }
-}
 
 pub async fn client_handshake<'a, IO: AsyncReadWrite>(
     io: &mut Framed<TempTransport<'a, IO>, LengthDelimitedCodec>,
