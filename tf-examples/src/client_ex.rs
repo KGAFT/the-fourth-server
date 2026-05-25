@@ -1,11 +1,14 @@
+use std::sync::Arc;
 use crate::s_type_example::{ExampleSType, ExpensiveMsg, ExpensiveResponse, TestMsg};
 use rand::{Rng, random};
 use std::time::{Duration, Instant};
+use tfserver::async_trait::async_trait;
 use tfserver::client::{ClientConnect, ClientMode, ClientRequest, DataRequest, HandlerInfo};
-use tfserver::codec::length_delimited::LengthDelimitedCodec;
+use tfserver::codec::spake2_encrypted::{ClientCredentialProvider, ServerCredentialProvider, Spake2Encrypted};
 use tfserver::structures::s_type;
 use tfserver::tokio;
 use tfserver::tokio::time::sleep;
+use tfserver::tokio_util::codec::LengthDelimitedCodec;
 
 mod s_type_example;
 ///Basically just serializing request
@@ -56,6 +59,18 @@ fn make_very_big_payload_request() -> DataRequest {
     data_req
 }
 
+
+pub struct TestClientCredProvider{
+
+}
+#[async_trait]
+impl ClientCredentialProvider for TestClientCredProvider{
+    async fn get_client_credentials(&self) -> Option<(Vec<u8>, Vec<u8>)> {
+        Some(("client".as_bytes().to_vec(), ("HelloPasswordForHandshake".as_bytes().to_vec())))
+    }
+}
+
+
 #[tokio::main]
 ///The client is simple as hell.
 ///Just create ClientConnect with same as server params.
@@ -65,7 +80,7 @@ async fn main() {
         "localhost".to_string(),
         "127.0.0.1:9973".to_string(),
         None,
-        LengthDelimitedCodec::new(1024 * 1024 * 1024),
+        Spake2Encrypted::create_client(Arc::new(TestClientCredProvider{}), "server".to_string(), LengthDelimitedCodec::new()),
        // ClientMode::WebSocket {url: "ws://127.0.0.1:9973/ws".into()  },
         ClientMode::Tcp {client_config: None},
         2500,

@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc};
 use tfserver::async_trait::async_trait;
 use tfserver::codec::length_delimited::LengthDelimitedCodec;
+use tfserver::codec::spake2_encrypted::Spake2Encrypted;
 use tfserver::futures_util::SinkExt;
 use tfserver::server::handler::Handler;
 use tfserver::structures::s_type::StructureType;
@@ -19,7 +20,7 @@ pub struct ManualHandler {
 
 #[async_trait]
 impl Handler for ManualHandler {
-    type Codec = LengthDelimitedCodec;
+    type Codec = Spake2Encrypted;
 
     async fn serve_route(
         &mut self,

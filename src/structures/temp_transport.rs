@@ -2,13 +2,14 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use crate::structures::transport::AsyncReadWrite;
 
 ///A container, that can store reference of the stream, and be used inside other structures, that does not accepts the references.
-pub struct TempTransport<'a, T: AsyncRead + AsyncWrite + Unpin + Send + Sync> {
+pub struct TempTransport<'a, T: AsyncReadWrite> {
     base_transport: &'a mut T,
 }
 
-impl<'a, T: AsyncRead + AsyncWrite + Unpin + Send + Sync> TempTransport<'a, T> {
+impl<'a, T: AsyncReadWrite> TempTransport<'a, T> {
     pub fn new(transport: &'a mut T) -> Self {
         TempTransport {
             base_transport: transport,
@@ -16,7 +17,7 @@ impl<'a, T: AsyncRead + AsyncWrite + Unpin + Send + Sync> TempTransport<'a, T> {
     }
 }
 
-impl<'a, T: AsyncRead + AsyncWrite + Unpin + Send + Sync> AsyncRead for TempTransport<'a, T> {
+impl<'a, T: AsyncReadWrite> AsyncRead for TempTransport<'a, T> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -26,7 +27,7 @@ impl<'a, T: AsyncRead + AsyncWrite + Unpin + Send + Sync> AsyncRead for TempTran
     }
 }
 
-impl<'a, T: AsyncRead + AsyncWrite + Unpin + Send + Sync> AsyncWrite for TempTransport<'a, T> {
+impl<'a, T: AsyncReadWrite> AsyncWrite for TempTransport<'a, T> {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,

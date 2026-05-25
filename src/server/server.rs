@@ -34,7 +34,6 @@ pub type RequestChannel<C> = (
     Receiver<Arc<Mutex<dyn Handler<Codec = C>>>>,
 );
 
-
 #[derive(Clone)]
 pub enum ServerMode {
     /// Plain TCP or TLS
@@ -92,7 +91,7 @@ where
             processor,
             codec,
             config,
-            mode
+            mode,
         }
     }
 
@@ -112,38 +111,36 @@ where
         };
         let codec = self.codec.clone();
         let config = self.config.clone();
-        let mode = self.mode.clone();   // ← new
+        let mode = self.mode.clone(); // ← new
 
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                res = listener.accept() => {
-                    if let Ok((stream, addr)) = res {
-                        let _ = stream.set_nodelay(true);
-                        let codec = codec.clone();
-                        let mode = mode.clone();    // ← new
+                    res = listener.accept() => {
+                        if let Ok((stream, addr)) = res {
+                            let _ = stream.set_nodelay(true);
+                            let codec = codec.clone();
+                            let mode = mode.clone();    
+                            let transport = Self::initial_accept(stream, config.clone(), codec, &mode).await;
 
-                        // ← swapped to new unified accept
-                        let transport = Self::initial_accept(stream, config.clone(), codec, &mode).await;
-
-                        if let Some(mut transport) = transport {
-                            if processor.initial_connect(&mut transport.0).await {
-                                let mut framed = Framed::new(transport.0, transport.1);
-                                if processor.initial_framed_connect(&mut framed).await {
-                                    let router = router.clone();
-                                    let prc_clone = processor.clone();
-                                    tokio::spawn(async move {
-                                        Self::handle_connection(addr, framed, router.as_ref(), prc_clone).await;
-                                    });
+                            if let Some(mut transport) = transport {
+                                if processor.initial_connect(&mut transport.0).await {
+                                    let mut framed = Framed::new(transport.0, transport.1);
+                                    if processor.initial_framed_connect(&mut framed).await {
+                                        let router = router.clone();
+                                        let prc_clone = processor.clone();
+                                        tokio::spawn(async move {
+                                            Self::handle_connection(addr, framed, router.as_ref(), prc_clone).await;
+                                        });
+                                    }
+                                } else {
+                                    let _ = transport.0.shutdown().await;
                                 }
-                            } else {
-                                let _ = transport.0.shutdown().await;
                             }
                         }
                     }
+                    _ = shutdown_sig.notified() => break,
                 }
-                _ = shutdown_sig.notified() => break,
-            }
             }
         })
     }
@@ -166,18 +163,15 @@ where
             }
         };
 
-
         let mut transport = match mode {
             ServerMode::Tcp => transport,
-            ServerMode::WebSocket => {
-                match Transport::accept_websocket(transport).await {
-                    Ok(ws_stream) => ws_stream,
-                    Err(e) => {
-                        eprintln!("WebSocket handshake failed: {e}");
-                        return None;
-                    }
+            ServerMode::WebSocket => match Transport::accept_websocket(transport).await {
+                Ok(ws_stream) => ws_stream,
+                Err(e) => {
+                    eprintln!("WebSocket handshake failed: {e}");
+                    return None;
                 }
-            }
+            },
         };
 
         if !codec_setup.initial_setup(&mut transport).await {

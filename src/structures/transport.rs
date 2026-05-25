@@ -79,6 +79,7 @@ impl Transport {
     pub fn plain(stream: TcpStream) -> Self {
         Self { inner: Box::new(stream) }
     }
+    
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn tls_server(stream: ServerTlsStream<TcpStream>) -> Self {

@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tfserver::async_trait::async_trait;
 use tfserver::codec::length_delimited::LengthDelimitedCodec;
+use tfserver::codec::spake2_encrypted::Spake2Encrypted;
 use tfserver::server::handler::Handler;
 use tfserver::structures::s_type;
 use tfserver::structures::s_type::StructureType;
@@ -16,7 +17,7 @@ use crate::s_type_example::{ExampleSType, TestMsg, TestResponse};
 pub struct TestHandler {}
 #[async_trait]
 impl Handler for TestHandler {
-    type Codec = LengthDelimitedCodec;
+    type Codec = Spake2Encrypted;
 
     async fn serve_route(
         &mut self,

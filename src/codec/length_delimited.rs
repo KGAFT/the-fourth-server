@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use std::io;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
-#[derive(Clone)]
+#[derive(Clone, Default)]
 ///The wrapper aroung existing codec, to be compatible with server
 pub struct LengthDelimitedCodec {
     codec: tokio_util::codec::LengthDelimitedCodec,
@@ -16,6 +16,12 @@ impl LengthDelimitedCodec {
             codec: tokio_util::codec::LengthDelimitedCodec::builder()
                 .max_frame_length(max_message_length)
                 .new_codec(),
+        }
+    }
+    
+    pub fn from(codec: tokio_util::codec::LengthDelimitedCodec) -> Self {
+        Self{
+            codec,
         }
     }
 }
