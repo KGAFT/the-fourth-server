@@ -1,51 +1,77 @@
-
 mod s_type_example;
 mod server_example;
 
-use std::sync::Arc;
-use tfserver::async_trait::async_trait;
-use tfserver::codec::spake2_encrypted::{ServerCredentialProvider, Spake2Encrypted};
-use tfserver::server::server::ServerMode::{Tcp, WebSocket};
-use tfserver::server::server_router::TfServerRouter;
-use tfserver::server::server::TfServer;
-use tfserver::tokio;
-use tfserver::tokio::sync::{Mutex, RwLock};
-use tfserver::tokio_util::codec::{LengthDelimitedCodec, LengthDelimitedCodecError};
 use crate::s_type_example::ExampleSType;
 use crate::server_example::handler_with_big_payload::BigPayloadHandler;
 use crate::server_example::manual_handler::ManualHandler;
 use crate::server_example::test_handler::TestHandler;
+use std::sync::Arc;
+use tfserver::async_trait::async_trait;
+use tfserver::codec::spake2_encrypted::{ServerCredentialProvider, Spake2Encrypted};
+use tfserver::server::server::ServerMode::{Tcp, WebSocket};
+use tfserver::server::server::TfServer;
+use tfserver::server::server_router::TfServerRouter;
+use tfserver::tokio;
+use tfserver::tokio::sync::{Mutex, RwLock};
+use tfserver::tokio_util::codec::{LengthDelimitedCodec, LengthDelimitedCodecError};
 
-
-pub struct TestServerCredProvider{
-
-}
+pub struct TestServerCredProvider {}
 #[async_trait]
-impl ServerCredentialProvider for TestServerCredProvider{
+impl ServerCredentialProvider for TestServerCredProvider {
     async fn get_client_password(&self, client_identity: &str) -> Option<Vec<u8>> {
         Some("HelloPasswordForHandshake".as_bytes().to_vec())
     }
 }
 
-
 #[tokio::main]
-pub async fn main(){
-    let test_handler = TestHandler{};
-    let big_payload_handler = BigPayloadHandler{};
-    let manual_handler = Arc::new(RwLock::new(ManualHandler{self_ref: None}));
+pub async fn main() {
+    let test_handler = TestHandler {};
+    let big_payload_handler = BigPayloadHandler {};
+    let manual_handler = Arc::new(RwLock::new(ManualHandler { self_ref: None }));
     manual_handler.write().await.self_ref = Some(manual_handler.clone());
 
-    let mut router: TfServerRouter<Spake2Encrypted> = TfServerRouter::new(Box::new(ExampleSType::TestResponse));
-    router.add_route(Arc::new(RwLock::new(test_handler)), "TEST_HANDLER".to_string(), vec![Box::new(ExampleSType::TestMessage), Box::new(ExampleSType::TestResponse)]);
-    router.add_route(Arc::new(RwLock::new(big_payload_handler)), "BIG_PAYLOAD".to_string(), vec![Box::new(ExampleSType::ExpensiveMessage), Box::new(ExampleSType::ExpensiveResponse)]);
-    router.add_route(manual_handler, "MANUAL_HANDLER".to_string(), vec![Box::new(ExampleSType::ManualHandlerRequest)]);
+    let mut router: TfServerRouter<Spake2Encrypted> =
+        TfServerRouter::new(Box::new(ExampleSType::TestResponse));
+    router.add_route(
+        Arc::new(RwLock::new(test_handler)),
+        "TEST_HANDLER".to_string(),
+        vec![
+            Box::new(ExampleSType::TestMessage),
+            Box::new(ExampleSType::TestResponse),
+        ],
+    );
+    router.add_route(
+        Arc::new(RwLock::new(big_payload_handler)),
+        "BIG_PAYLOAD".to_string(),
+        vec![
+            Box::new(ExampleSType::ExpensiveMessage),
+            Box::new(ExampleSType::ExpensiveResponse),
+        ],
+    );
+    router.add_route(
+        manual_handler,
+        "MANUAL_HANDLER".to_string(),
+        vec![Box::new(ExampleSType::ManualHandlerRequest)],
+    );
 
     router.commit_routes();
     let router = Arc::new(router);
 
-    let mut server = TfServer::new("0.0.0.0:9973".to_string(), router, None, Spake2Encrypted::create_server(Arc::new(TestServerCredProvider{}), "server".to_string(), LengthDelimitedCodec::new()), None, Tcp).await;
+    let mut server = TfServer::new(
+        "0.0.0.0:9973".to_string(),
+        router,
+        None,
+        Spake2Encrypted::create_server(
+            Arc::new(TestServerCredProvider {}),
+            "server".to_string(),
+            LengthDelimitedCodec::new(),
+        ),
+        None,
+        Tcp,
+    )
+    .await
+    .expect("Failed to create server");
     server.start().await;
     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
     server.send_stop();
-
 }

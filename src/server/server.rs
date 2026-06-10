@@ -1,3 +1,4 @@
+use crate::log_macros::{tf_debug, tf_error, tf_info, tf_warn};
 use crate::server::server_router::TfServerRouter;
 use crate::structures::s_type;
 use crate::structures::s_type::ServerErrorEn::InternalError;
@@ -24,11 +25,11 @@ use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::Framed;
 
-///The request channel, used to move out tcp stream out of server control.
+/// The request channel, used to move out tcp stream out of server control.
 ///
-///When the stream is moved, the server does not owns it anymore.
+/// When the stream is moved, the server does not own it anymore.
 ///
-///If is there need to return stream, only reconnect is available.
+/// If there is a need to return the stream, only reconnect is available.
 pub type RequestChannel<C> = (
     Sender<Arc<Mutex<dyn Handler<Codec = C>>>>,
     Receiver<Arc<Mutex<dyn Handler<Codec = C>>>>,
@@ -42,12 +43,11 @@ pub enum ServerMode {
     WebSocket,
 }
 
-///Base binary tcp server.
+/// Base binary TCP server.
 ///
-/// 'C' is you codec, that you want to use to encode/decode data.
+/// `C` is the codec used to encode/decode data.
 ///
-///Recommended default codec is LengthDelimitedCodec, from the server codec module.
-
+/// Recommended default codec is `LengthDelimitedCodec` from the server codec module.
 pub struct TfServer<C>
 where
     C: TfCodec,
@@ -65,13 +65,9 @@ impl<C> TfServer<C>
 where
     C: TfCodec,
 {
-    ///Creates a new instance of a server.
+    /// Creates a new server instance bound to `bind_address`.
     ///
-    /// 'bind_address' is a target address to bind current server. E.g: 0.0.0.0:8080
-    /// 'router' setted up router with handlers. Must be called commit_routes before using.
-    /// 'processor' Custom traffic processor, used for all streams.
-    /// 'codec' basically codec used for every stream with it's own instance, when the codec is applied to stream, first call is clone, the second call is initial_setup.
-    /// 'config' optional config for tls connection, when None the tls is not using, when some all connections are passed behind tls.
+    /// Returns an error if the address cannot be bound.
     pub async fn new(
         bind_address: String,
         router: Arc<TfServerRouter<C>>,
@@ -79,25 +75,26 @@ where
         codec: C,
         config: Option<ServerConfig>,
         mode: ServerMode,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, io::Error> {
+        let socket = TcpListener::bind(&bind_address).await.map_err(|e| {
+            tf_error!("Failed to bind to {}: {}", bind_address, e);
+            e
+        })?;
+        tf_info!("Server bound to {}", bind_address);
+        Ok(Self {
             router,
-            socket: Arc::new(
-                TcpListener::bind(&bind_address)
-                    .await
-                    .expect("Failed to bind to address"),
-            ),
+            socket: Arc::new(socket),
             shutdown_sig: Arc::new(Notify::new()),
             processor,
             codec,
             config,
             mode,
-        }
+        })
     }
 
-    ///Start the task for handling connections.
+    /// Start the task for handling connections.
     ///
-    ///Return the join handle, of this task.
+    /// Returns the join handle for the acceptor task.
     pub async fn start(&mut self) -> JoinHandle<()> {
         let (listener, router, shutdown_sig) = (
             self.socket.clone(),
@@ -111,41 +108,52 @@ where
         };
         let codec = self.codec.clone();
         let config = self.config.clone();
-        let mode = self.mode.clone(); // ← new
+        let mode = self.mode.clone();
 
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     res = listener.accept() => {
-                        if let Ok((stream, addr)) = res {
-                            let _ = stream.set_nodelay(true);
-                            let codec = codec.clone();
-                            let mode = mode.clone();    
-                            let transport = Self::initial_accept(stream, config.clone(), codec, &mode).await;
+                        match res {
+                            Ok((stream, addr)) => {
+                                tf_debug!("Accepted connection from {}", addr);
+                                let _ = stream.set_nodelay(true);
+                                let codec = codec.clone();
+                                let mode = mode.clone();
+                                let transport = Self::initial_accept(stream, config.clone(), codec, &mode).await;
 
-                            if let Some(mut transport) = transport {
-                                if processor.initial_connect(&mut transport.0).await {
-                                    let mut framed = Framed::new(transport.0, transport.1);
-                                    if processor.initial_framed_connect(&mut framed).await {
-                                        let router = router.clone();
-                                        let prc_clone = processor.clone();
-                                        tokio::spawn(async move {
-                                            Self::handle_connection(addr, framed, router.as_ref(), prc_clone).await;
-                                        });
+                                if let Some(mut transport) = transport {
+                                    if processor.initial_connect(&mut transport.0).await {
+                                        let mut framed = Framed::new(transport.0, transport.1);
+                                        if processor.initial_framed_connect(&mut framed).await {
+                                            let router = router.clone();
+                                            let prc_clone = processor.clone();
+                                            tokio::spawn(async move {
+                                                Self::handle_connection(addr, framed, router.as_ref(), prc_clone).await;
+                                            });
+                                        } else {
+                                            tf_warn!("Framed processor rejected connection from {}", addr);
+                                        }
+                                    } else {
+                                        tf_warn!("Processor rejected connection from {}", addr);
+                                        let _ = transport.0.shutdown().await;
                                     }
-                                } else {
-                                    let _ = transport.0.shutdown().await;
                                 }
+                            }
+                            Err(e) => {
+                                tf_warn!("Accept error: {}", e);
                             }
                         }
                     }
-                    _ = shutdown_sig.notified() => break,
+                    _ = shutdown_sig.notified() => {
+                        tf_info!("Server shutting down");
+                        break;
+                    }
                 }
             }
         })
     }
 
-    ///Initial accept called for every connection, on connected event.
     async fn initial_accept(
         stream: TcpStream,
         config: Option<ServerConfig>,
@@ -158,7 +166,10 @@ where
                 let acceptor = TlsAcceptor::from(Arc::new(cfg.clone()));
                 match acceptor.accept(stream).await {
                     Ok(tls) => Transport::tls_server(tls),
-                    Err(_) => return None,
+                    Err(e) => {
+                        tf_warn!("TLS handshake failed: {}", e);
+                        return None;
+                    }
                 }
             }
         };
@@ -168,24 +179,25 @@ where
             ServerMode::WebSocket => match Transport::accept_websocket(transport).await {
                 Ok(ws_stream) => ws_stream,
                 Err(e) => {
-                    eprintln!("WebSocket handshake failed: {e}");
+                    tf_warn!("WebSocket handshake failed: {}", e);
                     return None;
                 }
             },
         };
 
         if !codec_setup.initial_setup(&mut transport).await {
+            tf_warn!("Codec initial_setup rejected connection");
             return None;
         }
 
         Some((transport, codec_setup))
     }
-    ///Stops the acceptor task.
+
+    /// Signals the acceptor task to stop.
     pub fn send_stop(&self) {
         self.shutdown_sig.notify_waiters();
     }
 
-    ///Main function for every connection
     async fn handle_connection(
         addr: SocketAddr,
         mut stream: Framed<Transport, C>,
@@ -197,10 +209,12 @@ where
         let mut move_sig = (Some(move_sig.0), move_sig.1);
         loop {
             let meta_data: Result<Option<BytesMut>, bool> =
-                Self::receive_message(addr.clone(), &mut stream, &mut processor).await;
+                Self::receive_message(addr, &mut stream, &mut processor).await;
             if meta_data.is_err() {
                 if meta_data.unwrap_err() {
-                    stream.close().await.unwrap();
+                    stream.close().await.unwrap_or_else(|e| {
+                        tf_warn!("Error closing stream for {}: {}", addr, e);
+                    });
                     return;
                 }
                 continue;
@@ -213,16 +227,21 @@ where
             let meta_data = meta_data.unwrap();
             let has_payload = match s_type::from_slice::<PacketMeta>(meta_data.deref()) {
                 Ok(meta) => meta.has_payload,
-                Err(_) => false,
+                Err(e) => {
+                    tf_warn!("Failed to deserialize PacketMeta from {}: {}", addr, e);
+                    false
+                }
             };
 
             let mut payload: BytesMut = BytesMut::new();
             if has_payload {
                 let payload_res =
-                    Self::receive_message(addr.clone(), &mut stream, &mut processor).await;
+                    Self::receive_message(addr, &mut stream, &mut processor).await;
                 if payload_res.is_err() {
                     if payload_res.unwrap_err() {
-                        stream.close().await.unwrap();
+                        stream.close().await.unwrap_or_else(|e| {
+                            tf_warn!("Error closing stream for {}: {}", addr, e);
+                        });
                         return;
                     }
                     continue;
@@ -250,15 +269,14 @@ where
                 return;
             }
 
-            match res {
-                Err(_) => {
-                    let _ = stream.close();
-                    return;
-                }
-                _ => {}
+            if let Err(e) = res {
+                tf_warn!("Send error for {}: {}", addr, e);
+                let _ = stream.close();
+                return;
             }
         }
     }
+
     async fn send_message(
         stream: &mut Framed<Transport, C>,
         message: Vec<u8>,
@@ -269,7 +287,7 @@ where
     }
 
     async fn receive_message(
-        _: SocketAddr,
+        addr: SocketAddr,
         stream: &mut Framed<Transport, C>,
         processor: &mut TrafficProcessorHolder<C>,
     ) -> Result<Option<BytesMut>, bool> {
@@ -278,42 +296,31 @@ where
             Some(data) => match data {
                 Ok(mut data) => {
                     data = processor.pre_process_traffic(data).await;
-                    return Ok(Some(data));
+                    Ok(Some(data))
                 }
-                Err(e) => {
-                    // This is where codec-level decoding errors happen
-                    match e.kind() {
-                        // IO errors usually mean the connection is broken
-                        std::io::ErrorKind::ConnectionReset
-                        | std::io::ErrorKind::ConnectionAborted
-                        | std::io::ErrorKind::BrokenPipe
-                        | std::io::ErrorKind::UnexpectedEof => {
-                            println!("Client disconnected");
-                            return Err(true);
-                        }
-
-                        // Frame too large (if you set max_frame_length)
-                        std::io::ErrorKind::InvalidData => {
-                            eprintln!("Frame exceeded maximum size: {e}");
-                            return Err(false);
-                        }
-
-                        // Other IO errors
-                        _ => {
-                            eprintln!("IO error while reading frame: {e}");
-                            return Err(false);
-                        }
+                Err(e) => match e.kind() {
+                    std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::UnexpectedEof => {
+                        tf_debug!("Client {} disconnected", addr);
+                        Err(true)
                     }
-                }
+                    std::io::ErrorKind::InvalidData => {
+                        tf_warn!("Frame exceeded maximum size from {}: {}", addr, e);
+                        Err(false)
+                    }
+                    _ => {
+                        tf_warn!("IO error reading frame from {}: {}", addr, e);
+                        Err(false)
+                    }
+                },
             },
-            None => {
-                return Err(true);
-            }
+            None => Err(true),
         }
     }
 }
 
-// Custom Error Display
 impl fmt::Display for ServerErrorEn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

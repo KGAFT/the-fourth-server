@@ -16,7 +16,11 @@ path = "src/lib.rs"
 crate-type = ["rlib"]
 
 
+[features]
+logging = ["dep:log"]
+
 [dependencies]
+log = { version = "0.4", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"
 num_enum = "0.7"

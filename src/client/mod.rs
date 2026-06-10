@@ -1,6 +1,7 @@
 pub mod target_router;
 
 use crate::client::target_router::TargetRouter;
+use crate::log_macros::{tf_debug, tf_info, tf_warn};
 use crate::structures::s_type;
 use crate::structures::s_type::{PacketMeta, StructureType, SystemSType};
 use crate::structures::traffic_proc::TrafficProcessorHolder;
@@ -10,11 +11,11 @@ use std::io;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{mpsc};
+use tokio::sync::mpsc;
 use tokio_rustls::TlsConnector;
 use tokio_rustls::rustls::ClientConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
-use tokio_util::codec::{ Framed};
+use tokio_util::codec::Framed;
 use crate::codec::codec_trait::TfCodec;
 
 #[derive(Clone)]
@@ -22,7 +23,7 @@ pub enum ClientMode {
     /// Raw TCP, optionally wrapped in TLS
     Tcp { client_config: Option<ClientConfig> },
     /// WebSocket — for environments without raw TCP access (e.g. WASM)
-    /// 'url' full ws:// or wss:// URL, e.g. "wss://example.com:9000/ws"
+    /// `url` is the full ws:// or wss:// URL, e.g. "wss://example.com:9000/ws"
     WebSocket { url: String },
 }
 
@@ -34,6 +35,8 @@ pub enum ClientError {
     Router(String),
     ChannelClosed,
     Protocol(String),
+    /// Codec `initial_setup` failed during connection establishment.
+    Setup(String),
 }
 
 impl From<io::Error> for ClientError {
@@ -46,22 +49,22 @@ pub struct ClientConnect {
     tx: Sender<ClientRequest>,
 }
 
-#[derive( Clone)]
-///The structure that describes target handler
+#[derive(Clone)]
+/// Describes the target handler on the server.
 pub struct HandlerInfo {
     id: Option<u64>,
     named: Option<String>,
 }
 
 impl HandlerInfo {
-    ///Creates handler info by handler name
+    /// Creates handler info by handler name.
     pub fn new_named(name: String) -> Self {
         Self {
             id: None,
             named: Some(name),
         }
     }
-    ///Creates handler info by handler id
+    /// Creates handler info by handler id.
     pub fn new_id(id: u64) -> Self {
         Self {
             id: Some(id),
@@ -77,44 +80,46 @@ impl HandlerInfo {
         &self.named
     }
 }
-/// 'handler_info' info about target handler
-/// 'data' the request payload. E.g structure that will be deserialized on server side.
-/// 's_type' structure type indetifiers what data is send and how handler on server side will process this data.
+
+/// `handler_info` — info about the target handler.
+/// `data` — the request payload (serialized structure).
+/// `s_type` — identifies what data is sent and how the server handler processes it.
 pub struct DataRequest {
     pub handler_info: HandlerInfo,
     pub data: Vec<u8>,
     pub s_type: Box<dyn StructureType>,
 }
-///The request wrapper struct.
-/// 'req' data request
-/// 'consumer' the signal that will be called by connection, when the response arrives
- 
+
+/// Wraps a data request and the channel that receives the server response.
 pub struct ClientRequest {
     pub req: DataRequest,
     pub consumer: tokio::sync::oneshot::Sender<BytesMut>,
 }
 
 impl ClientConnect {
-    ///Creates and connect to the designated server address
-    /// 'server_name' used for tls mode. You need to pass domain name of the server. If there is no tls, you can pass random data or empty
-    /// 'connection_dest' the (server address/domain name):port. E.g temp_domain.com:443, or 65.88.95.127:9090.
-    /// 'processor' the traffic processor, must be symmetric to the server one processor.
-    /// 'codec' the connection codec. Recommended base LengthDelimitedCodec from module codec.
-    /// 'client_config' the tls config.
-    /// 'max_request_in_time' max amount of requests that can be dispatched in the same time.
+    /// Creates a client and connects to the server.
+    ///
+    /// - `server_name`: used for TLS SNI; may be empty when not using TLS.
+    /// - `connection_dest`: `host:port`, e.g. `"65.88.95.127:9090"`.
+    /// - `max_request_in_time`: capacity of the in-flight request channel.
     pub async fn new<C: TfCodec>(
         server_name: String,
-        connection_dest: String, 
+        connection_dest: String,
         processor: Option<TrafficProcessorHolder<C>>,
         mut codec: C,
-        mode: ClientMode,          // ← replaces client_config
+        mode: ClientMode,
         max_request_in_time: usize,
     ) -> Result<Self, ClientError> {
-        let mut transport = Self::connect(server_name, connection_dest, &mode).await?;
+        tf_info!("Connecting to {}", connection_dest);
+        let mut transport = Self::connect(server_name, connection_dest.clone(), &mode).await?;
 
         if !codec.initial_setup(&mut transport).await {
-            panic!("Failed to initial setup transport");
+            tf_warn!("Codec initial_setup failed for {}", connection_dest);
+            return Err(ClientError::Setup(
+                "codec initial_setup failed".into(),
+            ));
         }
+        tf_debug!("Connected to {}", connection_dest);
 
         let framed = Framed::new(transport, codec);
         let (tx, rx) = mpsc::channel(max_request_in_time);
@@ -122,6 +127,7 @@ impl ClientConnect {
 
         Ok(Self { tx })
     }
+
     async fn connect(
         server_name: String,
         connection_dest: String,
@@ -153,17 +159,15 @@ impl ClientConnect {
         }
     }
 
-    ///Dispatches the request.
+    /// Dispatches a request to the server.
     pub async fn dispatch_request(&self, request: ClientRequest) -> Result<(), ClientError> {
         self.tx
             .send(request)
             .await
             .map_err(|_| ClientError::ChannelClosed)
     }
-    
-    fn connection_main<
-        C: TfCodec,
-    >(
+
+    fn connection_main<C: TfCodec>(
         mut socket: Framed<Transport, C>,
         processor: Option<TrafficProcessorHolder<C>>,
         mut rx: Receiver<ClientRequest>,
@@ -176,15 +180,14 @@ impl ClientConnect {
                 if let Err(err) =
                     Self::process_request(request, &mut socket, &mut processor, &mut router).await
                 {
-                    eprintln!("Client request failed: {:?}", err);
+                    tf_warn!("Client request failed: {:?}", err);
                 }
             }
+            tf_debug!("Client connection loop ended");
         });
     }
 
-    async fn process_request<
-        C: TfCodec,
-    >(
+    async fn process_request<C: TfCodec>(
         request: ClientRequest,
         socket: &mut Framed<Transport, C>,
         processor: &mut TrafficProcessorHolder<C>,
@@ -199,6 +202,7 @@ impl ClientConnect {
                     .named
                     .ok_or_else(|| ClientError::Protocol("Missing handler name".into()))?;
 
+                tf_debug!("Requesting route id for handler '{}'", name);
                 target_router
                     .request_route(name.as_str(), socket, processor)
                     .await
@@ -225,17 +229,13 @@ impl ClientConnect {
         let response = wait_for_data(socket).await?;
         let response = processor.pre_process_traffic(response).await;
 
-        let _ = request
-            .consumer
-            .send(response);
+        let _ = request.consumer.send(response);
 
         Ok(())
     }
 }
 
-pub async fn wait_for_data<
-    C: TfCodec,
->(
+pub async fn wait_for_data<C: TfCodec>(
     socket: &mut Framed<Transport, C>,
 ) -> Result<BytesMut, ClientError> {
     use futures_util::StreamExt;
