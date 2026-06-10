@@ -3,6 +3,7 @@ use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use std::collections::HashSet;
+use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub static BINCODE_CFG: Configuration<LittleEndian, Fixint> = bincode::config::standard()
@@ -75,6 +76,31 @@ impl StrongType for ServerError {
         &self.s_type
     }
 }
+
+impl fmt::Display for ServerErrorEn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ServerErrorEn::MalformedMetaInfo(Some(msg)) => {
+                write!(f, "Malformed meta info: {}", msg)
+            }
+            ServerErrorEn::MalformedMetaInfo(None) => write!(f, "Malformed meta info!"),
+            ServerErrorEn::NoSuchHandler(Some(msg)) => write!(f, "No such handler: {}", msg),
+            ServerErrorEn::NoSuchHandler(None) => write!(f, "No such handler!"),
+            ServerErrorEn::InternalError(Some(data)) => {
+                write!(
+                    f,
+                    "{}",
+                    String::from_utf8(data.clone())
+                        .unwrap_or_else(|_| "Internal server error!".to_owned())
+                )
+            }
+            ServerErrorEn::InternalError(None) => write!(f, "Internal server error!"),
+            ServerErrorEn::PayloadLost => write!(f, "Payload lost!"),
+        }
+    }
+}
+
+impl std::error::Error for ServerErrorEn {}
 
 impl SystemSType {
     pub fn deserialize(val: u64) -> Box<dyn StructureType> {

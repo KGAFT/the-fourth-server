@@ -1,15 +1,17 @@
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use async_tungstenite::{ByteReader, ByteWriter};
 use futures_util::{StreamExt};
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 #[cfg(not(target_arch = "wasm32"))]
+use async_tungstenite::{ByteReader, ByteWriter};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::net::TcpStream;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio_rustls::{client::TlsStream as ClientTlsStream, server::TlsStream as ServerTlsStream};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio_tungstenite::{accept_async, connect_async};
 
 
@@ -95,6 +97,8 @@ impl Transport {
     /// On native: not available — use plain/tls_client/tls_server + a WS proxy if needed.
     #[cfg(target_arch = "wasm32")]
     pub async fn connect(url: &str) -> io::Result<Self> {
+        use ws_stream_wasm::WsMeta;
+        use futures_util::AsyncReadExt;
         let (_meta, ws_stream) = WsMeta::connect(url, None)
             .await
             .map_err(|e| io::Error::new(io::ErrorKind::ConnectionRefused, e.to_string()))?;

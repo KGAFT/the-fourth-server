@@ -1,9 +1,7 @@
 use crate::log_macros::{tf_debug, tf_error, tf_info, tf_warn};
 use crate::server::server_router::TfServerRouter;
 use crate::structures::s_type;
-use crate::structures::s_type::ServerErrorEn::InternalError;
 use crate::structures::s_type::{PacketMeta, ServerErrorEn};
-use std::fmt;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -320,32 +318,3 @@ where
         }
     }
 }
-
-impl fmt::Display for ServerErrorEn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ServerErrorEn::MalformedMetaInfo(Some(msg)) => {
-                write!(f, "Malformed meta info: {}", msg)
-            }
-            ServerErrorEn::MalformedMetaInfo(None) => write!(f, "Malformed meta info!"),
-            ServerErrorEn::NoSuchHandler(Some(msg)) => write!(f, "No such handler: {}", msg),
-            ServerErrorEn::NoSuchHandler(None) => write!(f, "No such handler!"),
-            InternalError(Some(data)) => {
-                write!(
-                    f,
-                    "{}",
-                    String::from_utf8(data.clone())
-                        .unwrap_or_else(|_| "Internal server error!".to_owned())
-                )
-            }
-            InternalError(None) => {
-                write!(f, "Internal server error!")
-            }
-            ServerErrorEn::PayloadLost => {
-                write!(f, "Payload lost!")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ServerErrorEn {}

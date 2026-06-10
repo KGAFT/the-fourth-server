@@ -70,6 +70,8 @@ impl Decoder for Spake2Encrypted {
         if let Some(keys) = &self.keys {
             keys.open_in_place(&mut frame)
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "decryption failed"))?;
+        } else {
+            return Err(io::Error::new(io::ErrorKind::Other, "decryption failed"));
         }
         Ok(Some(frame))
     }
@@ -85,7 +87,7 @@ impl Encoder<Bytes> for Spake2Encrypted {
                 .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "encryption failed"))?;
             self.length_codec.encode(buf.freeze(), dst)
         } else {
-            self.length_codec.encode(item, dst)
+            return Err(io::Error::new(io::ErrorKind::Other, "encryption failed"));
         }
     }
 }

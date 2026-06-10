@@ -8,11 +8,15 @@ use crate::structures::traffic_proc::TrafficProcessorHolder;
 use crate::structures::transport::Transport;
 use futures_util::SinkExt;
 use std::io;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::mpsc;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio_rustls::TlsConnector;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio_rustls::rustls::ClientConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::Framed;
@@ -21,6 +25,7 @@ use crate::codec::codec_trait::TfCodec;
 #[derive(Clone)]
 pub enum ClientMode {
     /// Raw TCP, optionally wrapped in TLS
+    #[cfg(not(target_arch = "wasm32"))]
     Tcp { client_config: Option<ClientConfig> },
     /// WebSocket — for environments without raw TCP access (e.g. WASM)
     /// `url` is the full ws:// or wss:// URL, e.g. "wss://example.com:9000/ws"
@@ -134,6 +139,7 @@ impl ClientConnect {
         mode: &ClientMode,
     ) -> Result<Transport, ClientError> {
         match mode {
+            #[cfg(not(target_arch = "wasm32"))]
             ClientMode::Tcp { client_config } => {
                 let socket = TcpStream::connect(&connection_dest).await?;
                 socket.set_nodelay(true)?;
