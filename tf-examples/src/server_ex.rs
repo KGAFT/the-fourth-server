@@ -22,7 +22,6 @@ impl ServerCredentialProvider for TestServerCredProvider {
         Some("HelloPasswordForHandshake".as_bytes().to_vec())
     }
 }
-///
 #[tokio::main]
 pub async fn main() {
     let test_handler = TestHandler {};
