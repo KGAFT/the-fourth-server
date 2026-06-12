@@ -4,7 +4,7 @@ use crate::structures::temp_transport::TempTransport;
 use crate::structures::transport::{AsyncReadWrite, Transport};
 use aes_gcm::{
     Aes256Gcm, Key, Nonce,
-    aead::{Aead, AeadCore, KeyInit},
+    aead::{ KeyInit},
 };
 use async_trait::async_trait;
 use bytes::{Buf, Bytes, BytesMut};

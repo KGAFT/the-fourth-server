@@ -1,7 +1,7 @@
 use crate::log_macros::{tf_debug, tf_error, tf_info, tf_warn};
 use crate::server::server_router::TfServerRouter;
 use crate::structures::s_type;
-use crate::structures::s_type::{PacketMeta, ServerErrorEn};
+use crate::structures::s_type::{PacketMeta};
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::Arc;
