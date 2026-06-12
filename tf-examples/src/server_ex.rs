@@ -67,7 +67,7 @@ pub async fn main() {
             LengthDelimitedCodec::new(),
         ),
         None,
-        Tcp,
+        WebSocket,
     )
     .await
     .expect("Failed to create server");

@@ -1,6 +1,6 @@
 [package]
 name = "the-fourth-server"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/KGAFT/the-fourth-server"
@@ -53,5 +53,4 @@ getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = true

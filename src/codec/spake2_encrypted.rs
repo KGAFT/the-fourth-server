@@ -1,14 +1,13 @@
 use std::io;
-use std::io::Error;
 use crate::codec::codec_trait::TfCodec;
 use crate::structures::temp_transport::TempTransport;
 use crate::structures::transport::{AsyncReadWrite, Transport};
 use aes_gcm::{
     Aes256Gcm, Key, Nonce,
-    aead::{Aead, AeadCore, KeyInit, OsRng},
+    aead::{Aead, AeadCore, KeyInit},
 };
 use async_trait::async_trait;
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use hkdf::Hkdf;
 use sha2::Sha256;
@@ -107,7 +106,7 @@ impl Clone for Spake2Encrypted {
 #[async_trait]
 impl TfCodec for Spake2Encrypted {
     async fn initial_setup(&mut self, tr: &mut Transport) -> bool {
-        ///Safe limitation to prevent dos
+        //Safe limitation to prevent dos
         let length_codec = LengthDelimitedCodec::builder().max_frame_length(2048).new_codec();
         let mut framed = Framed::new(TempTransport::new(tr), length_codec);
         if self.is_server{
@@ -153,24 +152,31 @@ pub struct SessionKeys {
 }
 
 
-struct BytesMutBuffer(pub BytesMut);
+const COUNTER_LEN: usize = 8;
+const TAG_LEN: usize = 16;
 
-impl AsRef<[u8]> for BytesMutBuffer {
-    fn as_ref(&self) -> &[u8] { &self.0 }
+
+struct OffsetBuffer<'a> {
+    buf: &'a mut BytesMut,
+    offset: usize,
 }
 
-impl AsMut<[u8]> for BytesMutBuffer {
-    fn as_mut(&mut self) -> &mut [u8] { &mut self.0 }
+impl AsRef<[u8]> for OffsetBuffer<'_> {
+    fn as_ref(&self) -> &[u8] { &self.buf[self.offset..] }
 }
 
-impl aead::Buffer for BytesMutBuffer {
+impl AsMut<[u8]> for OffsetBuffer<'_> {
+    fn as_mut(&mut self) -> &mut [u8] { &mut self.buf[self.offset..] }
+}
+
+impl aead::Buffer for OffsetBuffer<'_> {
     fn extend_from_slice(&mut self, other: &[u8]) -> aead::Result<()> {
-        self.0.extend_from_slice(other);
+        self.buf.extend_from_slice(other);
         Ok(())
     }
 
     fn truncate(&mut self, len: usize) {
-        self.0.truncate(len);
+        self.buf.truncate(self.offset + len);
     }
 }
 impl SessionKeys {
@@ -216,24 +222,27 @@ impl SessionKeys {
             let nonce_bytes = Self::nonce_from_counter(counter);
             let nonce = Nonce::from_slice(&nonce_bytes);
 
-            let mut wrapped = BytesMutBuffer(buf.split());
-
-            // counter is included in AAD so any wire tampering fails tag verification
-            self.send
-                .encrypt_in_place(nonce, &counter_bytes, &mut wrapped)
-                .ok()?;
-
-            buf.clear();
-            buf.reserve(8 + wrapped.0.len());
+            // Reframe the plaintext as [counter | plaintext] in a buffer sized for
+            // the tag too, so neither the prefix nor the tag append reallocates.
+            // The plaintext moves exactly once (the `unsplit`); after `split`, `buf`
+            // is empty with no spare capacity, so the `reserve` never copies.
+            let plaintext = buf.split();
+            buf.reserve(COUNTER_LEN + plaintext.len() + TAG_LEN);
             buf.extend_from_slice(&counter_bytes);
-            buf.unsplit(wrapped.0);
+            buf.unsplit(plaintext);
+
+            // Encrypt only the bytes after the counter prefix in place; the tag
+            // lands in the reserved headroom. counter is included in AAD so any
+            // wire tampering fails tag verification.
+            let mut framed = OffsetBuffer { buf: &mut *buf, offset: COUNTER_LEN };
+            self.send
+                .encrypt_in_place(nonce, &counter_bytes, &mut framed)
+                .ok()?;
 
             Some(())
         }
 
         pub fn open_in_place(&self, buf: &mut BytesMut) -> Option<()> {
-            const COUNTER_LEN: usize = 8;
-
             if buf.len() < COUNTER_LEN {
                 return None;
             }
@@ -265,15 +274,16 @@ impl SessionKeys {
             let nonce_bytes = Self::nonce_from_counter(counter);
             let nonce = Nonce::from_slice(&nonce_bytes);
 
-            let ciphertext = buf.split_off(COUNTER_LEN);
-            let mut wrapped = BytesMutBuffer(ciphertext);
-
-            // AAD must match what seal used, otherwise tag fails
+            // Decrypt the ciphertext after the counter prefix in place; the tag is
+            // truncated in place. AAD must match what seal used, otherwise tag fails.
+            let mut framed = OffsetBuffer { buf: &mut *buf, offset: COUNTER_LEN };
             self.recv
-                .decrypt_in_place(nonce, &counter_bytes, &mut wrapped)
+                .decrypt_in_place(nonce, &counter_bytes, &mut framed)
                 .ok()?;
 
-            *buf = wrapped.0;
+            // Drop the counter prefix with a zero-copy advance so `buf` holds
+            // exactly the recovered plaintext.
+            buf.advance(COUNTER_LEN);
 
             Some(())
         }
@@ -327,3 +337,54 @@ where
 }
 
 
+
+#[cfg(test)]
+mod seal_open_tests {
+    use super::*;
+
+
+    fn pair() -> (SessionKeys, SessionKeys) {
+        (
+            SessionKeys::derive_session_keys(b"shared-secret", true).unwrap(),
+            SessionKeys::derive_session_keys(b"shared-secret", false).unwrap(),
+        )
+    }
+
+    fn roundtrip(plaintext: &[u8]) {
+        let (server, client) = pair();
+
+        let mut buf = BytesMut::from(plaintext);
+        server.seal_in_place(&mut buf).expect("seal");
+        // wire layout = counter(8) | ciphertext | tag(16)
+        assert_eq!(buf.len(), COUNTER_LEN + plaintext.len() + TAG_LEN);
+        client.open_in_place(&mut buf).expect("open");
+        assert_eq!(&buf[..], plaintext);
+    }
+
+    #[test]
+    fn roundtrip_various_sizes() {
+        roundtrip(b"");
+        roundtrip(b"hello");
+        roundtrip(&[0x41u8; 4096]);
+    }
+
+    #[test]
+    fn replay_is_rejected() {
+        let (server, client) = pair();
+        let mut buf = BytesMut::from(&b"first"[..]);
+        server.seal_in_place(&mut buf).unwrap();
+        let mut replay = buf.clone();
+        client.open_in_place(&mut buf).unwrap();
+        assert!(client.open_in_place(&mut replay).is_none(), "replay must be rejected");
+    }
+
+    #[test]
+    fn tamper_is_rejected() {
+        let (server, client) = pair();
+        let mut buf = BytesMut::from(&b"payload"[..]);
+        server.seal_in_place(&mut buf).unwrap();
+        let idx = buf.len() - 1;
+        buf[idx] ^= 0xFF; // flip a tag byte
+        assert!(client.open_in_place(&mut buf).is_none(), "tamper must fail tag check");
+    }
+}
