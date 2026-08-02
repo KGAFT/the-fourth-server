@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 use std::sync::{Arc};
 use async_trait::async_trait;
+use bytes::Bytes;
+use rkyv::util::AlignedVec;
 use tokio::sync::{RwLock};
 use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::{BytesMut};
@@ -33,7 +35,7 @@ pub trait Handler: Send + Sync {
         client_meta: (SocketAddr,  &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = Self::Codec>>>>>),
         s_type: Box<dyn StructureType>,
         data: BytesMut,
-    ) -> Result<Vec<u8>, Vec<u8>>;
+    ) -> Result<Bytes, Bytes>;
 
     ///This function called, when server received the request of handler to move stream. It returns all needed data for this stream.
     async fn accept_stream(&mut self, add: SocketAddr, stream: (Framed<Transport, Self::Codec>, TrafficProcessorHolder<Self::Codec>));

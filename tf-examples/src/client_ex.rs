@@ -8,6 +8,7 @@ use tfserver::codec::spake2_encrypted::{ClientCredentialProvider, ServerCredenti
 use tfserver::structures::s_type;
 use tfserver::tokio;
 use tfserver::tokio::time::sleep;
+use tfserver::tokio_util::bytes::Bytes;
 use tfserver::tokio_util::codec::LengthDelimitedCodec;
 
 mod s_type_example;
@@ -21,7 +22,7 @@ fn make_test_request() -> DataRequest {
     };
     let data_req = DataRequest {
         handler_info: HandlerInfo::new_named("TEST_HANDLER".to_string()),
-        data: s_type::to_vec(&request).unwrap(),
+        data: Bytes::from_owner(s_type::to_bytes(&request).unwrap()),
         s_type: Box::new(ExampleSType::TestMessage),
     };
     data_req
@@ -37,7 +38,7 @@ fn make_big_payload_request() -> DataRequest {
     };
     let data_req = DataRequest {
         handler_info: HandlerInfo::new_named("BIG_PAYLOAD".to_string()),
-        data: s_type::to_vec(&request).unwrap(),
+        data: Bytes::from_owner(s_type::to_bytes(&request).unwrap()),
         s_type: Box::new(ExampleSType::ExpensiveResponse),
     };
     data_req
@@ -53,7 +54,7 @@ fn make_very_big_payload_request() -> DataRequest {
     };
     let data_req = DataRequest {
         handler_info: HandlerInfo::new_named("BIG_PAYLOAD".to_string()),
-        data: s_type::to_vec(&request).unwrap(),
+        data: Bytes::from_owner(s_type::to_bytes(&request).unwrap()),
         s_type: Box::new(ExampleSType::ExpensiveResponse),
     };
     data_req
@@ -81,8 +82,8 @@ async fn main() {
         "127.0.0.1:9973".to_string(),
         None,
         Spake2Encrypted::create_client(Arc::new(TestClientCredProvider{}), "server".to_string(), LengthDelimitedCodec::new()),
-        ClientMode::WebSocket {url: "ws://127.0.0.1:9973/ws".into()  },
-      //  ClientMode::Tcp {client_config: None},
+      //  ClientMode::WebSocket {url: "ws://127.0.0.1:9973/ws".into()  },
+        ClientMode::Tcp {client_config: None},
         2500,
 
     )

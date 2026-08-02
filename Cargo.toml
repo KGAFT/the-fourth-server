@@ -25,7 +25,7 @@ serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"
 num_enum = "0.7"
 rand = "0.9"
-bincode = { version = "2", features = ["serde"] }
+rkyv = {version = "0.8"}
 tokio-util = {version = "0.7", features = ["codec"]}
 futures-util = { version = "0.3", features = ["sink", "io", "tokio-io", "futures-io", "io-compat"] }
 async-trait = { version = "0.1" }

@@ -1,0 +1,144 @@
+Building release binaries...
+warning: `tf-examples` (bin "client_example") generated 13 warnings (1 duplicate) (run `cargo fix --bin "client_example" -p tf-examples` to apply 8 suggestions)
+    Finished `release` profile [optimized] target(s) in 0.10s
+>>> tf_plain conns=1 payload=64B
+RESULT target=tf_plain conns=1 payload=64 dur=8.00 ok_conns=1 rps=81342 p50_us=9 p99_us=27 p999_us=90 max_us=5399 count=650734 errors=0 cpu_pct=44.1 peak_rss_mb=3.9
+>>> tf_enc conns=1 payload=64B
+RESULT target=tf_enc conns=1 payload=64 dur=8.00 ok_conns=1 rps=72367 p50_us=11 p99_us=30 p999_us=101 max_us=3269 count=578937 errors=0 cpu_pct=45.2 peak_rss_mb=4.3
+>>> axum conns=1 payload=64B
+RESULT target=axum conns=1 payload=64 dur=8.00 ok_conns=1 rps=64634 p50_us=13 p99_us=35 p999_us=91 max_us=3961 count=517075 errors=0 cpu_pct=44.5 peak_rss_mb=3.9
+>>> actix conns=1 payload=64B
+RESULT target=actix conns=1 payload=64 dur=8.00 ok_conns=1 rps=59402 p50_us=12 p99_us=45 p999_us=121 max_us=4399 count=475215 errors=0 cpu_pct=28.9 peak_rss_mb=6.1
+>>> lynn conns=1 payload=64B
+RESULT target=lynn conns=1 payload=64 dur=8.00 ok_conns=1 rps=33958 p50_us=17 p99_us=267 p999_us=1142 max_us=41983 count=271665 errors=0 cpu_pct=553.8 peak_rss_mb=7.3
+>>> tf_plain conns=50 payload=64B
+RESULT target=tf_plain conns=50 payload=64 dur=8.00 ok_conns=50 rps=232429 p50_us=207 p99_us=508 p999_us=2013 max_us=8139 count=1859433 errors=0 cpu_pct=225.5 peak_rss_mb=7.5
+>>> tf_enc conns=50 payload=64B
+RESULT target=tf_enc conns=50 payload=64 dur=8.00 ok_conns=50 rps=218648 p50_us=219 p99_us=547 p999_us=2029 max_us=6475 count=1749180 errors=0 cpu_pct=231.1 peak_rss_mb=9.5
+>>> axum conns=50 payload=64B
+RESULT target=axum conns=50 payload=64 dur=8.00 ok_conns=50 rps=388410 p50_us=100 p99_us=524 p999_us=1426 max_us=5563 count=3107279 errors=0 cpu_pct=280.7 peak_rss_mb=7.6
+>>> actix conns=50 payload=64B
+RESULT target=actix conns=50 payload=64 dur=8.00 ok_conns=50 rps=544637 p50_us=74 p99_us=370 p999_us=817 max_us=9455 count=4357094 errors=0 cpu_pct=410.1 peak_rss_mb=7.7
+>>> lynn conns=50 payload=64B
+RESULT target=lynn conns=50 payload=64 dur=8.00 ok_conns=50 rps=195526 p50_us=203 p99_us=2057 p999_us=4187 max_us=43519 count=1564210 errors=0 cpu_pct=1779.8 peak_rss_mb=9.1
+>>> tf_plain conns=200 payload=64B
+RESULT target=tf_plain conns=200 payload=64 dur=8.00 ok_conns=200 rps=232332 p50_us=838 p99_us=1800 p999_us=3231 max_us=5911 count=1858652 errors=0 cpu_pct=232.1 peak_rss_mb=13.3
+>>> tf_enc conns=200 payload=64B
+RESULT target=tf_enc conns=200 payload=64 dur=8.00 ok_conns=200 rps=223219 p50_us=888 p99_us=1661 p999_us=3543 max_us=8375 count=1785749 errors=0 cpu_pct=238.9 peak_rss_mb=14.0
+>>> axum conns=200 payload=64B
+RESULT target=axum conns=200 payload=64 dur=8.00 ok_conns=200 rps=543714 p50_us=311 p99_us=1187 p999_us=2401 max_us=8179 count=4349712 errors=0 cpu_pct=374.0 peak_rss_mb=11.6
+>>> actix conns=200 payload=64B
+RESULT target=actix conns=200 payload=64 dur=8.00 ok_conns=200 rps=676800 p50_us=257 p99_us=928 p999_us=1879 max_us=11295 count=5414399 errors=0 cpu_pct=465.0 peak_rss_mb=9.9
+>>> lynn conns=200 payload=64B
+RESULT target=lynn conns=200 payload=64 dur=8.00 ok_conns=200 rps=383862 p50_us=400 p99_us=3451 p999_us=6555 max_us=50335 count=3070893 errors=0 cpu_pct=1766.7 peak_rss_mb=11.6
+>>> tf_plain conns=1000 payload=64B
+RESULT target=tf_plain conns=1000 payload=64 dur=8.00 ok_conns=1000 rps=200979 p50_us=4923 p99_us=7095 p999_us=9191 max_us=13407 count=1607831 errors=0 cpu_pct=220.0 peak_rss_mb=37.3
+>>> tf_enc conns=1000 payload=64B
+RESULT target=tf_enc conns=1000 payload=64 dur=8.00 ok_conns=578 rps=207654 p50_us=2763 p99_us=4323 p999_us=6539 max_us=9975 count=1661234 errors=422 cpu_pct=235.5 peak_rss_mb=26.4
+>>> axum conns=1000 payload=64B
+RESULT target=axum conns=1000 payload=64 dur=8.00 ok_conns=1000 rps=686992 p50_us=1266 p99_us=4287 p999_us=7171 max_us=17279 count=5495940 errors=0 cpu_pct=469.5 peak_rss_mb=32.5
+>>> actix conns=1000 payload=64B
+RESULT target=actix conns=1000 payload=64 dur=8.00 ok_conns=1000 rps=745950 p50_us=1149 p99_us=4255 p999_us=6643 max_us=18383 count=5967597 errors=0 cpu_pct=511.5 peak_rss_mb=22.0
+>>> lynn conns=1000 payload=64B
+RESULT target=lynn conns=1000 payload=64 dur=8.00 ok_conns=1000 rps=631198 p50_us=889 p99_us=9631 p999_us=15575 max_us=51071 count=5049583 errors=0 cpu_pct=1510.0 peak_rss_mb=25.0
+>>> tf_plain conns=2000 payload=64B
+RESULT target=tf_plain conns=2000 payload=64 dur=8.00 ok_conns=2000 rps=182851 p50_us=10951 p99_us=14271 p999_us=16087 max_us=21855 count=1462806 errors=0 cpu_pct=212.3 peak_rss_mb=63.9
+>>> tf_enc conns=2000 payload=64B
+  (no result - server failed or timed out, see benchmarks/run.log)
+>>> axum conns=2000 payload=64B
+RESULT target=axum conns=2000 payload=64 dur=8.00 ok_conns=2000 rps=656157 p50_us=2589 p99_us=9599 p999_us=13359 max_us=25103 count=5249258 errors=0 cpu_pct=473.6 peak_rss_mb=57.8
+>>> actix conns=2000 payload=64B
+RESULT target=actix conns=2000 payload=64 dur=8.00 ok_conns=2000 rps=703972 p50_us=2305 p99_us=10359 p999_us=15199 max_us=30559 count=5631777 errors=0 cpu_pct=516.6 peak_rss_mb=37.2
+>>> lynn conns=2000 payload=64B
+RESULT target=lynn conns=2000 payload=64 dur=8.00 ok_conns=2000 rps=660109 p50_us=1602 p99_us=15447 p999_us=23263 max_us=53823 count=5280873 errors=0 cpu_pct=1428.0 peak_rss_mb=40.5
+>>> tf_plain conns=3500 payload=64B
+RESULT target=tf_plain conns=3500 payload=64 dur=8.00 ok_conns=3500 rps=178514 p50_us=19551 p99_us=26399 p999_us=37759 max_us=48511 count=1428110 errors=0 cpu_pct=206.4 peak_rss_mb=104.7
+>>> tf_enc conns=3500 payload=64B
+RESULT target=tf_enc conns=3500 payload=64 dur=8.00 ok_conns=1429 rps=181186 p50_us=7843 p99_us=9671 p999_us=11111 max_us=33119 count=1449492 errors=2071 cpu_pct=226.9 peak_rss_mb=51.0
+>>> axum conns=3500 payload=64B
+RESULT target=axum conns=3500 payload=64 dur=8.00 ok_conns=3500 rps=645254 p50_us=4483 p99_us=18031 p999_us=25455 max_us=45695 count=5162035 errors=0 cpu_pct=481.6 peak_rss_mb=95.4
+>>> actix conns=3500 payload=64B
+RESULT target=actix conns=3500 payload=64 dur=8.00 ok_conns=3500 rps=654486 p50_us=4057 p99_us=23551 p999_us=35455 max_us=55135 count=5235886 errors=0 cpu_pct=490.5 peak_rss_mb=60.0
+>>> lynn conns=3500 payload=64B
+RESULT target=lynn conns=3500 payload=64 dur=8.00 ok_conns=2988 rps=646155 p50_us=2991 p99_us=20207 p999_us=30847 max_us=72447 count=5169237 errors=512 cpu_pct=1367.2 peak_rss_mb=52.2
+>>> tf_plain conns=50 payload=65536B
+RESULT target=tf_plain conns=50 payload=65536 dur=8.00 ok_conns=50 rps=48042 p50_us=1030 p99_us=1995 p999_us=3825 max_us=10439 count=384340 errors=0 cpu_pct=189.9 peak_rss_mb=22.9
+>>> tf_enc conns=50 payload=65536B
+RESULT target=tf_enc conns=50 payload=65536 dur=8.00 ok_conns=50 rps=19816 p50_us=2507 p99_us=3477 p999_us=5499 max_us=10967 count=158524 errors=0 cpu_pct=227.9 peak_rss_mb=24.5
+>>> axum conns=50 payload=65536B
+RESULT target=axum conns=50 payload=65536 dur=8.00 ok_conns=50 rps=158060 p50_us=273 p99_us=940 p999_us=2113 max_us=14111 count=1264483 errors=0 cpu_pct=481.8 peak_rss_mb=31.4
+>>> actix conns=50 payload=65536B
+RESULT target=actix conns=50 payload=65536 dur=8.00 ok_conns=50 rps=168204 p50_us=234 p99_us=1220 p999_us=2427 max_us=8263 count=1345629 errors=0 cpu_pct=657.1 peak_rss_mb=35.2
+>>> lynn conns=50 payload=65536B
+RESULT target=lynn conns=50 payload=65536 dur=8.00 ok_conns=50 rps=62 p50_us=832511 p99_us=839167 p999_us=840703 max_us=840703 count=499 errors=0 cpu_pct=343.2 peak_rss_mb=21.5
+>>> tf_plain conns=200 payload=65536B
+RESULT target=tf_plain conns=200 payload=65536 dur=8.00 ok_conns=200 rps=39013 p50_us=5215 p99_us=7059 p999_us=10319 max_us=15631 count=312103 errors=0 cpu_pct=170.2 peak_rss_mb=84.3
+>>> tf_enc conns=200 payload=65536B
+RESULT target=tf_enc conns=200 payload=65536 dur=8.00 ok_conns=200 rps=18057 p50_us=11007 p99_us=14767 p999_us=19407 max_us=23279 count=144457 errors=0 cpu_pct=219.9 peak_rss_mb=83.5
+>>> axum conns=200 payload=65536B
+RESULT target=axum conns=200 payload=65536 dur=8.00 ok_conns=200 rps=144328 p50_us=1249 p99_us=3405 p999_us=5151 max_us=12119 count=1154626 errors=0 cpu_pct=625.7 peak_rss_mb=53.0
+>>> actix conns=200 payload=65536B
+RESULT target=actix conns=200 payload=65536 dur=8.00 ok_conns=200 rps=103832 p50_us=1654 p99_us=6039 p999_us=8943 max_us=21951 count=830657 errors=0 cpu_pct=650.8 peak_rss_mb=60.2
+>>> lynn conns=200 payload=65536B
+RESULT target=lynn conns=200 payload=65536 dur=8.00 ok_conns=200 rps=0 p50_us=0 p99_us=0 p999_us=0 max_us=0 count=0 errors=200 cpu_pct=100.5 peak_rss_mb=0.0
+
+Wrote benchmarks/results.md
+# Benchmark results
+
+- Date: 2026-06-24 15:34 UTC
+- Host: Linux 7.0.10-p1-gentoo-dist x86_64, 24 logical cores, 31Gi RAM
+- nofile (fd) limit: 4096 — caps max concurrent connections on this box
+- Measurement window: 8s after 2s warmup
+- Workload: echo. Each connection is a strict sequential request/response loop; concurrency = connection count.
+- CPU%: server process utime+stime over the window (>100% means multiple cores). RSS: peak (VmHWM).
+
+## Payload 64 B
+
+| target | conns | rps | p50 µs | p99 µs | p99.9 µs | max µs | cpu % | peak RSS MB | ok/conns | errors |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| tf_plain | 1 | 81342 | 9 | 27 | 90 | 5399 | 44.1 | 3.9 | 1/1 | 0 |
+| tf_enc | 1 | 72367 | 11 | 30 | 101 | 3269 | 45.2 | 4.3 | 1/1 | 0 |
+| axum | 1 | 64634 | 13 | 35 | 91 | 3961 | 44.5 | 3.9 | 1/1 | 0 |
+| actix | 1 | 59402 | 12 | 45 | 121 | 4399 | 28.9 | 6.1 | 1/1 | 0 |
+| lynn | 1 | 33958 | 17 | 267 | 1142 | 41983 | 553.8 | 7.3 | 1/1 | 0 |
+| tf_plain | 50 | 232429 | 207 | 508 | 2013 | 8139 | 225.5 | 7.5 | 50/50 | 0 |
+| tf_enc | 50 | 218648 | 219 | 547 | 2029 | 6475 | 231.1 | 9.5 | 50/50 | 0 |
+| axum | 50 | 388410 | 100 | 524 | 1426 | 5563 | 280.7 | 7.6 | 50/50 | 0 |
+| actix | 50 | 544637 | 74 | 370 | 817 | 9455 | 410.1 | 7.7 | 50/50 | 0 |
+| lynn | 50 | 195526 | 203 | 2057 | 4187 | 43519 | 1779.8 | 9.1 | 50/50 | 0 |
+| tf_plain | 200 | 232332 | 838 | 1800 | 3231 | 5911 | 232.1 | 13.3 | 200/200 | 0 |
+| tf_enc | 200 | 223219 | 888 | 1661 | 3543 | 8375 | 238.9 | 14.0 | 200/200 | 0 |
+| axum | 200 | 543714 | 311 | 1187 | 2401 | 8179 | 374.0 | 11.6 | 200/200 | 0 |
+| actix | 200 | 676800 | 257 | 928 | 1879 | 11295 | 465.0 | 9.9 | 200/200 | 0 |
+| lynn | 200 | 383862 | 400 | 3451 | 6555 | 50335 | 1766.7 | 11.6 | 200/200 | 0 |
+| tf_plain | 1000 | 200979 | 4923 | 7095 | 9191 | 13407 | 220.0 | 37.3 | 1000/1000 | 0 |
+| tf_enc | 1000 | 207654 | 2763 | 4323 | 6539 | 9975 | 235.5 | 26.4 | 578/1000 | 422 |
+| axum | 1000 | 686992 | 1266 | 4287 | 7171 | 17279 | 469.5 | 32.5 | 1000/1000 | 0 |
+| actix | 1000 | 745950 | 1149 | 4255 | 6643 | 18383 | 511.5 | 22.0 | 1000/1000 | 0 |
+| lynn | 1000 | 631198 | 889 | 9631 | 15575 | 51071 | 1510.0 | 25.0 | 1000/1000 | 0 |
+| tf_plain | 2000 | 182851 | 10951 | 14271 | 16087 | 21855 | 212.3 | 63.9 | 2000/2000 | 0 |
+| tf_enc | 2000 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0/2000 | -1 |
+| axum | 2000 | 656157 | 2589 | 9599 | 13359 | 25103 | 473.6 | 57.8 | 2000/2000 | 0 |
+| actix | 2000 | 703972 | 2305 | 10359 | 15199 | 30559 | 516.6 | 37.2 | 2000/2000 | 0 |
+| lynn | 2000 | 660109 | 1602 | 15447 | 23263 | 53823 | 1428.0 | 40.5 | 2000/2000 | 0 |
+| tf_plain | 3500 | 178514 | 19551 | 26399 | 37759 | 48511 | 206.4 | 104.7 | 3500/3500 | 0 |
+| tf_enc | 3500 | 181186 | 7843 | 9671 | 11111 | 33119 | 226.9 | 51.0 | 1429/3500 | 2071 |
+| axum | 3500 | 645254 | 4483 | 18031 | 25455 | 45695 | 481.6 | 95.4 | 3500/3500 | 0 |
+| actix | 3500 | 654486 | 4057 | 23551 | 35455 | 55135 | 490.5 | 60.0 | 3500/3500 | 0 |
+| lynn | 3500 | 646155 | 2991 | 20207 | 30847 | 72447 | 1367.2 | 52.2 | 2988/3500 | 512 |
+
+## Payload 65536 B
+
+| target | conns | rps | p50 µs | p99 µs | p99.9 µs | max µs | cpu % | peak RSS MB | ok/conns | errors |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| tf_plain | 50 | 48042 | 1030 | 1995 | 3825 | 10439 | 189.9 | 22.9 | 50/50 | 0 |
+| tf_enc | 50 | 19816 | 2507 | 3477 | 5499 | 10967 | 227.9 | 24.5 | 50/50 | 0 |
+| axum | 50 | 158060 | 273 | 940 | 2113 | 14111 | 481.8 | 31.4 | 50/50 | 0 |
+| actix | 50 | 168204 | 234 | 1220 | 2427 | 8263 | 657.1 | 35.2 | 50/50 | 0 |
+| lynn | 50 | 62 | 832511 | 839167 | 840703 | 840703 | 343.2 | 21.5 | 50/50 | 0 |
+| tf_plain | 200 | 39013 | 5215 | 7059 | 10319 | 15631 | 170.2 | 84.3 | 200/200 | 0 |
+| tf_enc | 200 | 18057 | 11007 | 14767 | 19407 | 23279 | 219.9 | 83.5 | 200/200 | 0 |
+| axum | 200 | 144328 | 1249 | 3405 | 5151 | 12119 | 625.7 | 53.0 | 200/200 | 0 |
+| actix | 200 | 103832 | 1654 | 6039 | 8943 | 21951 | 650.8 | 60.2 | 200/200 | 0 |
+| lynn | 200 | 0 | 0 | 0 | 0 | 0 | 100.5 | 0.0 | 200/200 | 200 |
+

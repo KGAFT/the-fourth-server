@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use bytes::Bytes;
 use tfserver::async_trait::async_trait;
 use tfserver::codec::length_delimited::LengthDelimitedCodec;
 use tfserver::codec::spake2_encrypted::Spake2Encrypted;
@@ -27,17 +28,17 @@ impl Handler for TestHandler {
         ),
         s_type: Box<dyn StructureType>,
         mut data: BytesMut,
-    ) -> Result<Vec<u8>, Vec<u8>> {
+    ) -> Result<Bytes, Bytes> {
         match s_type.as_any().downcast_ref::<ExampleSType>().unwrap(){
             ExampleSType::TestMessage => {
                 let mut message = s_type::from_slice::<TestMsg>(data.as_mut()).unwrap();
                 message.message+="Hello from server!";
-                return Ok(s_type::to_vec(&message).unwrap());
+                return Ok(Bytes::from_owner(s_type::to_bytes(&message).unwrap()));
             }
             ExampleSType::TestResponse => {
                 let mut message = s_type::from_slice::<TestResponse>(data.as_mut()).unwrap();
                 message.another_message+="Hello from server! response";
-                return Ok(s_type::to_vec(&message).unwrap());
+                return Ok(Bytes::from_owner(s_type::to_bytes(&message).unwrap()));
             }
             _=> {
                 Err("malformed message type".into())

@@ -11,7 +11,7 @@ use tfserver::structures::traffic_proc::TrafficProcessorHolder;
 use tfserver::structures::transport::Transport;
 use tfserver::tokio::sync::{Mutex, RwLock};
 use tfserver::tokio::sync::oneshot::Sender;
-use tfserver::tokio_util::bytes::BytesMut;
+use tfserver::tokio_util::bytes::{Bytes, BytesMut};
 use tfserver::tokio_util::codec::Framed;
 
 pub struct ManualHandler {
@@ -30,13 +30,13 @@ impl Handler for ManualHandler {
         ),
         s_type: Box<dyn StructureType>,
         data: BytesMut,
-    ) -> Result<Vec<u8>, Vec<u8>> {
+    ) -> Result<Bytes, Bytes> {
         match s_type.as_any().downcast_ref::<ExampleSType>().unwrap() {
             ExampleSType::ManualHandlerRequest => {
                 if let Some(cli) = client_meta.1.take() {
                     let _ = cli.send(self.self_ref.as_ref().unwrap().clone());
                 }
-                Ok(data.to_vec())
+                Ok(data.freeze())
             }
             _ => {
                 Err("Invalid type in ExampleSType".into())

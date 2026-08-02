@@ -3,6 +3,12 @@ name = "tf-examples"
 version = "0.1.0"
 edition = "2024"
 
+# Shared benchmark helpers (stats, /proc sampler, echo protocol).
+# Consumed by the bench_* binaries below.
+[lib]
+name = "tf_examples"
+path = "src/lib.rs"
+
 [[bin]]
 name = "s_type_example"
 path = "src/s_type_ex.rs"
@@ -15,18 +21,57 @@ path = "src/server_ex.rs"
 name = "client_example"
 path = "src/client_ex.rs"
 
+# ---- Benchmark binaries -------------------------------------------------
+# Each server is a payload-agnostic echo server on its own framework.
+[[bin]]
+name = "bench_tf_plain_server"
+path = "src/benches/tf_plain_server.rs"
+
+[[bin]]
+name = "bench_tf_enc_server"
+path = "src/benches/tf_enc_server.rs"
+
+[[bin]]
+name = "bench_axum_server"
+path = "src/benches/axum_server.rs"
+
+[[bin]]
+name = "bench_actix_server"
+path = "src/benches/actix_server.rs"
+
+[[bin]]
+name = "bench_lynn_server"
+path = "src/benches/lynn_server.rs"
+
+# The load generator. Spawns a server, drives it, samples CPU/RSS, reports.
+[[bin]]
+name = "bench_runner"
+path = "src/benches/runner.rs"
 
 [dependencies]
-the-fourth-server = {path = "../"}
+the-fourth-server = { path = "../" }
 serde = { version = "1.0", features = ["derive"] }
 num_enum = "0.7"
 rand = "0.9.2"
+rkyv = "0.8"
+# Benchmark deps
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+hdrhistogram = "7"
+bytes = "1"
 
-
+# Comparison frameworks
+axum = "0.8"
+actix-web = "4"
+lynn_tcp = "2.0.0-rc.1"
+# HTTP load client (rustls so we don't depend on system OpenSSL; we only hit http://)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
 [profile.release]
 opt-level = 3
-lto = true
-codegen-units = 1
+# thin LTO + a few codegen units keeps the heavy axum/actix/reqwest/lynn build
+# times reasonable while staying fully optimized for fair benchmarking.
+lto = "thin"
+codegen-units = 16
 panic = "abort"
 strip = true

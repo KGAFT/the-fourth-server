@@ -1,6 +1,8 @@
 use crate::codec::codec_trait::TfCodec;
 use crate::structures::transport::Transport;
 use async_trait::async_trait;
+use bytes::Bytes;
+use rkyv::util::AlignedVec;
 use tokio_util::bytes::{BytesMut};
 use tokio_util::codec::{ Framed};
 
@@ -14,7 +16,7 @@ pub trait TrafficProcess: Send + Sync {
     async fn initial_framed_connect(&mut self, source: &mut Framed<Transport, Self::Codec>)
     -> bool;
     ///Process every traffic that is handled by server
-    async fn post_process_traffic(&mut self, data: Vec<u8>) -> Vec<u8>;
+    async fn post_process_traffic(&mut self, data: Bytes) -> Bytes;
     ///Process every traffic that is handled by server
     async fn pre_process_traffic(&mut self, data: BytesMut) -> BytesMut;
     fn clone(&self) -> Box<dyn TrafficProcess<Codec = Self::Codec>>;
@@ -70,7 +72,7 @@ where
         true
     }
 
-    pub async fn post_process_traffic(&mut self, mut data: Vec<u8>) -> Vec<u8> {
+    pub async fn post_process_traffic(&mut self, mut data: Bytes) -> Bytes {
         for proc in self.processors.iter_mut() {
             data = proc.post_process_traffic(data).await;
         }

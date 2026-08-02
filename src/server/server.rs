@@ -13,6 +13,7 @@ use crate::server::handler::Handler;
 use crate::structures::traffic_proc::TrafficProcessorHolder;
 use crate::structures::transport::Transport;
 use futures_util::SinkExt;
+use rkyv::util::AlignedVec;
 use tokio::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -223,7 +224,7 @@ where
                 continue;
             }
             let meta_data = meta_data.unwrap();
-            let has_payload = match s_type::from_slice::<PacketMeta>(meta_data.deref()) {
+            let has_payload = match s_type::access::<PacketMeta>(meta_data.deref()) {
                 Ok(meta) => meta.has_payload,
                 Err(e) => {
                     tf_warn!("Failed to deserialize PacketMeta from {}: {}", addr, e);
@@ -255,7 +256,7 @@ where
                 .serve_packet(meta_data, payload, (addr, &mut move_sig.0))
                 .await;
 
-            let message = res.unwrap_or_else(|err| s_type::to_vec(&err).unwrap());
+            let message = res.unwrap_or_else(|err| Bytes::from_owner(s_type::to_bytes(&err).unwrap()));
             let res = Self::send_message(&mut stream, message, &mut processor).await;
 
             if let Ok(requester) = move_sig.1.try_recv() {
@@ -277,10 +278,10 @@ where
 
     async fn send_message(
         stream: &mut Framed<Transport, C>,
-        message: Vec<u8>,
+        message: Bytes,
         processor: &mut TrafficProcessorHolder<C>,
     ) -> Result<(), io::Error> {
-        let message = Bytes::from(processor.post_process_traffic(message).await);
+        let message = Bytes::from_owner(processor.post_process_traffic(message).await);
         stream.send(message).await
     }
 

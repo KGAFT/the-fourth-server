@@ -6,6 +6,7 @@ use crate::structures::transport::Transport;
 use futures_util::SinkExt;
 use std::collections::HashMap;
 use std::io;
+use bytes::Bytes;
 use tokio_util::codec::{Framed};
 use crate::codec::codec_trait::TfCodec;
 
@@ -68,12 +69,12 @@ impl TargetRouter {
             handler_name: name.to_string(),
         };
 
-        let serialized = s_type::to_vec(&meta_req)
-            .ok_or(RouterError::Protocol("serialization failed".into()))?;
+        let serialized = Bytes::from_owner(s_type::to_bytes(&meta_req)
+            .ok_or(RouterError::Protocol("serialization failed".into()))?);
 
         let processed = processor.post_process_traffic(serialized).await;
 
-        stream.send(processed.into()).await?;
+        stream.send(Bytes::from_owner(processed)).await?;
 
         let response = wait_for_data(stream)
             .await
@@ -81,9 +82,9 @@ impl TargetRouter {
 
         let mut response = processor.pre_process_traffic(response).await;
 
-        let meta_ans = s_type::from_slice::<HandlerMetaAns>(response.as_mut())
+        let meta_ans = s_type::access::<HandlerMetaAns>(response.as_mut())
             .map_err(|e| RouterError::Protocol(e.to_string()))?;
 
-        Ok(meta_ans.id)
+        Ok(meta_ans.id.to_native())
     }
 }

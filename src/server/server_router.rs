@@ -3,7 +3,9 @@ use std::net::{SocketAddr};
 use std::ops::Deref;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc};
+use bytes::Bytes;
 use futures_util::FutureExt;
+use rkyv::util::AlignedVec;
 use tokio::sync::{RwLock};
 use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::{BytesMut};
@@ -101,13 +103,13 @@ where
         meta: BytesMut,
         payload: BytesMut,
         client_meta: (SocketAddr,  &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = C>>>>>),
-    ) -> Result<Vec<u8>, ServerError> {
+    ) -> Result<Bytes, ServerError> {
         // Try to deserialize normal PacketMeta
-        if let Ok(meta_pack) = s_type::from_slice::<PacketMeta>(&meta) {
-            let s_type = self.user_s_type.get_deserialize_function().deref()(meta_pack.s_type_req);
+        if let Ok(meta_pack) = s_type::access::<PacketMeta>(&meta) {
+            let s_type = self.user_s_type.get_deserialize_function().deref()(meta_pack.s_type_req.to_native());
             let key = TypeTuple {
                 s_types: HashSet::from([TypeContainer::new(s_type.clone_unique())]),
-                handler_id: meta_pack.handler_id,
+                handler_id: meta_pack.handler_id.to_native(),
             };
 
             let handler = self.routes.get(&key).ok_or(ServerError::new(ServerErrorEn::NoSuchHandler(None)))?;
@@ -119,20 +121,20 @@ where
             return match res {
                 Ok(data) => match data{
                     Ok(data) => Ok(data),
-                    Err(err) => {Err(ServerError::new(ServerErrorEn::InternalError(Some(err.to_vec()))))}
+                    Err(err) => {Err(ServerError::new(ServerErrorEn::InternalError(Some(Vec::from(err)))))}
                 },
                 Err(_) => Err(ServerError::new(InternalError(Some("handler died :(".as_bytes().to_vec())))),
             };
         }
 
         // Try to handle as HandlerMetaReq
-        if let Ok(meta_req) = s_type::from_slice::<HandlerMetaReq>(&meta) {
-            if let Some(route_id) = self.routes_text_names.get(&meta_req.handler_name) {
+        if let Ok(meta_req) = s_type::access::<HandlerMetaReq>(&meta) {
+            if let Some(route_id) = self.routes_text_names.get(&meta_req.handler_name.to_string()) {
                 let meta_ans = HandlerMetaAns {
                     s_type: SystemSType::HandlerMetaAns,
                     id: *route_id,
                 };
-                return Ok(s_type::to_vec(&meta_ans).unwrap());
+                return Ok(Bytes::from_owner(s_type::to_bytes(&meta_ans).unwrap()));
             } else {
                 return Err(ServerError::new(ServerErrorEn::NoSuchHandler(None)));
             }

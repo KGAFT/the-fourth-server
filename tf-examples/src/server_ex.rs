@@ -25,10 +25,10 @@ impl ServerCredentialProvider for TestServerCredProvider {
 #[tokio::main]
 pub async fn main() {
     let test_handler = TestHandler {};
-    let big_payload_handler = BigPayloadHandler {};
+    let big_payload_handler =  Arc::new(RwLock::new(BigPayloadHandler {self_ref: None}));
     let manual_handler = Arc::new(RwLock::new(ManualHandler { self_ref: None }));
     manual_handler.write().await.self_ref = Some(manual_handler.clone());
-
+    big_payload_handler.write().await.self_ref = Some(big_payload_handler.clone());
     let mut router: TfServerRouter<Spake2Encrypted> =
         TfServerRouter::new(Box::new(ExampleSType::TestResponse));
     router.add_route(
@@ -40,7 +40,7 @@ pub async fn main() {
         ],
     );
     router.add_route(
-        Arc::new(RwLock::new(big_payload_handler)),
+       big_payload_handler,
         "BIG_PAYLOAD".to_string(),
         vec![
             Box::new(ExampleSType::ExpensiveMessage),
@@ -66,7 +66,7 @@ pub async fn main() {
             LengthDelimitedCodec::new(),
         ),
         None,
-        WebSocket,
+        Tcp,
     )
     .await
     .expect("Failed to create server");

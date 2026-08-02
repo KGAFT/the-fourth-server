@@ -10,6 +10,7 @@ use futures_util::SinkExt;
 use std::io;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
+use rkyv::util::AlignedVec;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -91,7 +92,7 @@ impl HandlerInfo {
 /// `s_type` — identifies what data is sent and how the server handler processes it.
 pub struct DataRequest {
     pub handler_info: HandlerInfo,
-    pub data: Vec<u8>,
+    pub data: Bytes,
     pub s_type: Box<dyn StructureType>,
 }
 
@@ -223,14 +224,14 @@ impl ClientConnect {
             has_payload: !request.req.data.is_empty(),
         };
 
-        let meta_vec = s_type::to_vec(&meta)
-            .ok_or_else(|| ClientError::Protocol("PacketMeta serialization failed".into()))?;
+        let meta_vec = Bytes::from_owner( s_type::to_bytes(&meta)
+            .ok_or_else(|| ClientError::Protocol("PacketMeta serialization failed".into()))?);
 
         let meta_bytes = processor.post_process_traffic(meta_vec).await;
         let payload = processor.post_process_traffic(request.req.data).await;
 
-        socket.send(Bytes::from(meta_bytes)).await?;
-        socket.send(Bytes::from(payload)).await?;
+        socket.send(Bytes::from_owner(meta_bytes)).await?;
+        socket.send(Bytes::from_owner(payload)).await?;
 
         let response = wait_for_data(socket).await?;
         let response = processor.pre_process_traffic(response).await;

@@ -1,24 +1,19 @@
-use bincode::config::{Configuration, Fixint, LittleEndian};
 use num_enum::TryFromPrimitive;
-use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use rkyv::{api::high::{HighSerializer, HighValidator}, rancor::{Error as RkyvError, Strategy}, ser::allocator::ArenaHandle, util::AlignedVec, Archive, Deserialize, Serialize};
 
-pub static BINCODE_CFG: Configuration<LittleEndian, Fixint> = bincode::config::standard()
-    .with_little_endian()
-    .with_fixed_int_encoding()
-    .with_no_limit();
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Archive)]
 pub enum ServerErrorEn {
     MalformedMetaInfo(Option<String>),
     NoSuchHandler(Option<String>),
     InternalError(Option<Vec<u8>>),
     PayloadLost,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Archive)]
 pub struct ServerError {
     s_type: SystemSType,
     pub en: ServerErrorEn,
@@ -62,8 +57,140 @@ pub trait StrongType: Any {
     fn get_s_type(&self) -> &dyn StructureType;
 }
 
+
+/// Implements `StructureType` for a fieldless "s_type" enum and its rkyv-archived
+/// counterpart, given the list of (variant => (owned_struct, archived_struct)) mappings.
+///
+/// Requires: the owned enum derives Copy, Clone, PartialEq, Eq, TryFromPrimitive, repr(u8).
+#[macro_export]
+macro_rules! impl_structure_type {
+    (
+        $owned:ident, $archived:ident,
+        $( $variant:ident => ($owned_struct:ty, $archived_struct:ty) ),+ $(,)?
+    ) => {
+        impl $owned {
+            pub fn deserialize(val: u64) -> Box<dyn StructureType> {
+                Box::new($owned::try_from(val as u8).unwrap())
+            }
+
+            pub fn serialize(refer: Box<dyn StructureType>) -> u64 {
+                refer
+                    .as_any()
+                    .downcast_ref::<$owned>()
+                    .unwrap()
+                    .clone() as u8 as u64
+            }
+        }
+
+        impl StructureType for $owned {
+            fn get_type_id(&self) -> TypeId {
+                match self {
+                    $( $owned::$variant => TypeId::of::<$owned_struct>(), )+
+                }
+            }
+
+            fn equals(&self, other: &dyn StructureType) -> bool {
+                match other.as_any().downcast_ref::<Self>() {
+                    Some(d) => d == self,
+                    None => false,
+                }
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+
+            fn hash(&self) -> u64 {
+                let mut hasher = DefaultHasher::default();
+                TypeId::of::<Self>().hash(&mut hasher);
+                (*self as u8).hash(&mut hasher);
+                hasher.finish()
+            }
+
+            fn clone_unique(&self) -> Box<dyn StructureType> {
+                Box::new(self.clone())
+            }
+
+            fn get_deserialize_function(&self) -> Box<dyn Fn(u64) -> Box<dyn StructureType>> {
+                Box::new($owned::deserialize)
+            }
+
+            fn get_serialize_function(&self) -> Box<dyn Fn(Box<dyn StructureType>) -> u64> {
+                Box::new($owned::serialize)
+            }
+        }
+
+        impl $archived {
+            fn to_owned_stype(&self) -> $owned {
+                match self {
+                    $( $archived::$variant => $owned::$variant, )+
+                }
+            }
+        }
+
+        impl StructureType for $archived {
+            fn get_type_id(&self) -> TypeId {
+                match self {
+                    $( $archived::$variant => TypeId::of::<$archived_struct>(), )+
+                }
+            }
+
+            fn equals(&self, other: &dyn StructureType) -> bool {
+                match other.as_any().downcast_ref::<Self>() {
+                    Some(d) => d.to_owned_stype() == self.to_owned_stype(),
+                    None => false,
+                }
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+
+            fn hash(&self) -> u64 {
+                let mut hasher = DefaultHasher::default();
+                TypeId::of::<Self>().hash(&mut hasher);
+                (self.to_owned_stype() as u8).hash(&mut hasher);
+                hasher.finish()
+            }
+
+            fn clone_unique(&self) -> Box<dyn StructureType> {
+                Box::new(self.to_owned_stype())
+            }
+
+            fn get_deserialize_function(&self) -> Box<dyn Fn(u64) -> Box<dyn StructureType>> {
+                Box::new($owned::deserialize)
+            }
+
+            fn get_serialize_function(&self) -> Box<dyn Fn(Box<dyn StructureType>) -> u64> {
+                Box::new($owned::serialize)
+            }
+        }
+    };
+}
+
+/// Implements `StrongType` (owned + archived) for structs that carry an `s_type` field. 
+#[macro_export]
+macro_rules! impl_strong_type {
+    ($($owned:ty => $archived:ty),+ $(,)?) => {
+        $(
+            impl StrongType for $owned {
+                fn get_s_type(&self) -> &dyn StructureType {
+                    &self.s_type
+                }
+            }
+
+            impl StrongType for $archived {
+                fn get_s_type(&self) -> &dyn StructureType {
+                    &self.s_type
+                }
+            }
+        )+
+    };
+}
+
+
 #[repr(u8)]
-#[derive(Serialize, Deserialize, PartialEq, Clone, Hash, Eq, TryFromPrimitive, Copy)]
+#[derive(Serialize, Deserialize, Archive, PartialEq, Clone, Hash, Eq, TryFromPrimitive, Copy)]
 pub enum SystemSType {
     PacketMeta,
     HandlerMetaReq,
@@ -71,11 +198,6 @@ pub enum SystemSType {
     ServerError,
 }
 
-impl StrongType for ServerError {
-    fn get_s_type(&self) -> &(dyn StructureType + 'static) {
-        &self.s_type
-    }
-}
 
 impl fmt::Display for ServerErrorEn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -102,63 +224,23 @@ impl fmt::Display for ServerErrorEn {
 
 impl std::error::Error for ServerErrorEn {}
 
-impl SystemSType {
-    pub fn deserialize(val: u64) -> Box<dyn StructureType> {
-        Box::new(SystemSType::try_from(val as u8).unwrap())
-    }
 
-    pub fn serialize(refer: Box<dyn StructureType>) -> u64 {
-        refer
-            .as_any()
-            .downcast_ref::<SystemSType>()
-            .unwrap()
-            .clone() as u8 as u64
-    }
-}
+ impl_structure_type!(
+    SystemSType, ArchivedSystemSType,
+    PacketMeta => (PacketMeta, ArchivedPacketMeta),
+    HandlerMetaReq => (HandlerMetaReq, ArchivedHandlerMetaReq),
+    HandlerMetaAns => (HandlerMetaAns, ArchivedHandlerMetaAns),
+    ServerError => (ServerError, ArchivedServerError),
+);
 
-impl StructureType for SystemSType {
-    fn get_type_id(&self) -> TypeId {
-        return match self {
-            Self::PacketMeta => TypeId::of::<PacketMeta>(),
-            Self::HandlerMetaAns => TypeId::of::<HandlerMetaAns>(),
-            Self::HandlerMetaReq => TypeId::of::<HandlerMetaReq>(),
-            Self::ServerError => TypeId::of::<ServerError>(),
-        };
-    }
+impl_strong_type!(
+    PacketMeta => ArchivedPacketMeta,
+    HandlerMetaReq => ArchivedHandlerMetaReq,
+    HandlerMetaAns => ArchivedHandlerMetaAns,
+    ServerError => ArchivedServerError,
+);
 
-    fn equals(&self, other: &dyn StructureType) -> bool {
-        let downcast = other.as_any().downcast_ref::<Self>();
-        if downcast.is_none() {
-            return false;
-        }
-        let downcast = downcast.unwrap();
-        return downcast.eq(self);
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn hash(&self) -> u64 {
-        let mut hasher = DefaultHasher::default();
-        TypeId::of::<Self>().hash(&mut hasher);
-        ((*self).clone() as u8).hash(&mut hasher);
-        return hasher.finish();
-    }
-
-    fn clone_unique(&self) -> Box<dyn StructureType> {
-        Box::new(self.clone())
-    }
-
-    fn get_deserialize_function(&self) -> Box<dyn Fn(u64) -> Box<dyn StructureType>> {
-        Box::new(SystemSType::deserialize)
-    }
-
-    fn get_serialize_function(&self) -> Box<dyn Fn(Box<dyn StructureType>) -> u64> {
-        Box::new(SystemSType::serialize)
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Archive)]
 pub struct PacketMeta {
     pub s_type: SystemSType,
     pub s_type_req: u64,
@@ -166,35 +248,23 @@ pub struct PacketMeta {
     pub has_payload: bool,
 }
 
-impl StrongType for PacketMeta {
-    fn get_s_type(&self) -> &dyn StructureType {
-        &self.s_type
-    }
-}
 
-#[derive(Serialize, Deserialize, Clone)]
+
+#[derive(Serialize, Deserialize, Clone, Archive)]
 pub struct HandlerMetaReq {
     pub s_type: SystemSType,
     pub handler_name: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Archive)]
 pub struct HandlerMetaAns {
     pub s_type: SystemSType,
     pub id: u64,
 }
 
-impl StrongType for HandlerMetaReq {
-    fn get_s_type(&self) -> &dyn StructureType {
-        &self.s_type
-    }
-}
 
-impl StrongType for HandlerMetaAns {
-    fn get_s_type(&self) -> &(dyn StructureType + 'static) {
-        &self.s_type
-    }
-}
+
+
 
 pub struct TypeContainer {
     s_type: Box<dyn StructureType>,
@@ -238,47 +308,93 @@ pub fn validate_s_type(target: &dyn StrongType) -> bool {
     let s_type = target.get_s_type();
     return s_type.get_type_id() == target.type_id();
 }
+
+
+type SerCtx<'a> = HighSerializer<AlignedVec, ArenaHandle<'a>, RkyvError>;
+type ValCtx<'a> = HighValidator<'a, RkyvError>;
+
+
 ///Function that serializes object into binary data with type safety/
-pub fn to_vec<T: Serialize + StrongType>(arg: &T) -> Option<Vec<u8>> {
+#[deprecated(note = "Use to_archive instead")]
+pub fn to_vec<T>(arg: &T) -> Option<Vec<u8>>
+where
+    T: for<'a> Serialize<SerCtx<'a>> + StrongType,
+{
     if !validate_s_type(arg) {
         eprintln!("stype validation failed");
         return None;
     }
-    let res = bincode::serde::encode_to_vec(arg, BINCODE_CFG.clone());
-    if res.is_err() {
-        eprintln!("bincode serialization failed");
+
+    match rkyv::to_bytes::<RkyvError>(arg) {
+        Ok(bytes) => Some(bytes.to_vec()),
+        Err(_) => {
+            eprintln!("rkyv serialization failed");
+            None
+        }
+    }
+}
+/// Deserialize into an owned value.
+#[deprecated(note = "Use from_archive instead")]
+pub fn from_slice<T>(arg: &[u8]) -> Result<T, String>
+where
+    T: Archive + StrongType,
+    T::Archived: for<'a> rkyv::bytecheck::CheckBytes<ValCtx<'a>>
+    + Deserialize<T, Strategy<rkyv::de::Pool, RkyvError>>,
+{
+    let res: Result<T, RkyvError> = rkyv::from_bytes::<T, RkyvError>(arg);
+
+    let parsed = match res {
+        Ok(v) => v,
+        Err(_) => return Err(decode_server_error(arg)),
+    };
+
+    if !validate_s_type(&parsed) {
+        return Err(decode_server_error(arg));
+    }
+
+    Ok(parsed)
+}
+
+pub fn to_bytes<T>(arg: &T) -> Option<AlignedVec>
+where
+    T: for<'a> Serialize<SerCtx<'a>> + StrongType,
+{
+    if !validate_s_type(arg) {
+        eprintln!("stype validation failed");
         return None;
     }
-    Some(res.unwrap())
+
+    rkyv::to_bytes::<RkyvError>(arg)
+        .map_err(|_| eprintln!("rkyv serialization failed"))
+        .ok()
 }
-///Function that deserializes the binary data into the requested structure with type safety checks.
-pub fn from_slice<T: for<'a> Deserialize<'a> + StrongType>(arg: &[u8]) -> Result<T, String> {
-    let res = bincode::serde::decode_from_slice::<T, Configuration<LittleEndian, Fixint>>(
-        arg,
-        BINCODE_CFG.clone(),
-    );
-    if res.is_err() {
-        let error_server = bincode::serde::decode_from_slice::<
-            ServerError,
-            Configuration<LittleEndian, Fixint>,
-        >(arg, BINCODE_CFG.clone());
-        if error_server.is_err() {
-            return Err("Unknown packet type".to_string());
-        }
-        return Err(error_server.unwrap().0.en.to_string());
+
+/// Zero-copy deserialize: validates the bytes and hands back a reference
+/// into `arg` (`&T::Archived`) instead of an owned `T`. No allocation,
+/// no copy — this borrows from the input buffer.
+pub fn access<'a, T>(arg: &'a [u8]) -> Result<&'a T::Archived, String>
+where
+    T: Archive + 'a,
+    T::Archived: for<'b> rkyv::bytecheck::CheckBytes<ValCtx<'b>> + StrongType,
+{
+    let archived: &T::Archived = match rkyv::access::<T::Archived, RkyvError>(arg) {
+        Ok(a) => a,
+        Err(_) => return Err(decode_server_error(arg)),
+    };
+
+    if !validate_s_type(archived) {
+        return Err(decode_server_error(arg));
     }
-    let res = res.unwrap().0;
-    if !validate_s_type(&res) {
-        let error_server = bincode::serde::decode_from_slice::<
-            ServerError,
-            Configuration<LittleEndian, Fixint>,
-        >(&arg, BINCODE_CFG.clone());
-        if error_server.is_err() {
-            return Err("Unknown packet type".to_string());
-        }
-        return Err(error_server.unwrap().0.en.to_string());
+
+    Ok(archived)
+}
+
+
+fn decode_server_error(arg: &[u8]) -> String {
+    match rkyv::from_bytes::<ServerError, RkyvError>(arg) {
+        Ok(err) => err.en.to_string(),
+        Err(_) => "Unknown packet type".to_string(),
     }
-    Ok(res)
 }
 
 impl PartialEq<Self> for TypeTuple {
@@ -303,3 +419,4 @@ impl Hash for TypeTuple {
         self.handler_id.hash(state);
     }
 }
+
