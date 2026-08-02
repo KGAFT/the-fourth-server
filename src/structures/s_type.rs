@@ -168,7 +168,7 @@ macro_rules! impl_structure_type {
     };
 }
 
-/// Implements `StrongType` (owned + archived) for structs that carry an `s_type` field. 
+/// Implements `StrongType` (owned + archived) for structs that carry an `s_type` field.
 #[macro_export]
 macro_rules! impl_strong_type {
     ($($owned:ty => $archived:ty),+ $(,)?) => {
@@ -345,7 +345,10 @@ where
 
     let parsed = match res {
         Ok(v) => v,
-        Err(_) => return Err(decode_server_error(arg)),
+        Err(err) => {
+            eprintln!("{}", err);
+            return Err(decode_server_error(arg))
+        },
     };
 
     if !validate_s_type(&parsed) {

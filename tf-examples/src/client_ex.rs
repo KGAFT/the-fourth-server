@@ -77,6 +77,7 @@ impl ClientCredentialProvider for TestClientCredProvider{
 ///Just create ClientConnect with same as server params.
 /// Each request from client, new oneshot channel to receive response
 async fn main() {
+    env_logger::init();
     let mut client_connect = ClientConnect::new(
         "localhost".to_string(),
         "127.0.0.1:9973".to_string(),

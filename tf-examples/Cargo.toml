@@ -66,6 +66,7 @@ actix-web = "4"
 lynn_tcp = "2.0.0-rc.1"
 # HTTP load client (rustls so we don't depend on system OpenSSL; we only hit http://)
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+env_logger = "0.11.11"
 
 [profile.release]
 opt-level = 3

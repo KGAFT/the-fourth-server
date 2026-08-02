@@ -24,6 +24,8 @@ impl ServerCredentialProvider for TestServerCredProvider {
 }
 #[tokio::main]
 pub async fn main() {
+    env_logger::init();
+
     let test_handler = TestHandler {};
     let big_payload_handler =  Arc::new(RwLock::new(BigPayloadHandler {self_ref: None}));
     let manual_handler = Arc::new(RwLock::new(ManualHandler { self_ref: None }));
