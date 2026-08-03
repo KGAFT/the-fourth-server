@@ -21,7 +21,7 @@ pub struct BigPayloadHandler {
 #[async_trait]
 impl Handler for BigPayloadHandler {
     type Codec = Spake2Encrypted;
-
+   // type Codec  = LengthDelimitedCodec;
     async fn serve_route(
         &mut self,
         client_meta: (

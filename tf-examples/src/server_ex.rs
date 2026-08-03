@@ -62,6 +62,7 @@ pub async fn main() {
         "0.0.0.0:9973".to_string(),
         router,
         None,
+        
         Spake2Encrypted::create_server(
             Arc::new(TestServerCredProvider {}),
             "server".to_string(),

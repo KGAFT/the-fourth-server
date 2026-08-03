@@ -306,7 +306,12 @@ pub struct TypeTuple {
 
 pub fn validate_s_type(target: &dyn StrongType) -> bool {
     let s_type = target.get_s_type();
-    return s_type.get_type_id() == target.type_id();
+    let t_1 = s_type.get_type_id();
+    let t_2 = target.type_id();
+    let p_meta_t = TypeId::of::<PacketMeta>();
+    let p_ameta_t = TypeId::of::<ArchivedPacketMeta>();
+    println!("t_1: {:?}, t_2: {:?}", p_meta_t, p_ameta_t);
+    return t_1 == t_2;
 }
 
 

@@ -1,4 +1,4 @@
-use crate::s_type_example::{ExampleSType, ExpensiveMsg, ExpensiveResponse, TestMsg, TestResponse};
+use crate::s_type_example::{ArchivedExpensiveMsg, ArchivedExpensiveResponse, ArchivedTestMsg, ArchivedTestResponse, ExampleSType, ExpensiveMsg, ExpensiveResponse, TestMsg, TestResponse};
 use tfserver::structures::s_type;
 
 pub fn try_serialize_structures() -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>){
@@ -40,9 +40,9 @@ pub fn try_serialize_structures() -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>){
 }
 
 pub fn try_deserialize_structures(structures: (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>)){
-    let test1: TestMsg = s_type::from_slice(&structures.0).expect("Should be able to deserialize");
-    let test2: TestResponse = s_type::from_slice(&structures.1).expect("Should be able to deserialize");
-    let test3: ExpensiveMsg = s_type::from_slice(&structures.2).expect("Should be able to deserialize");
-    let test4: ExpensiveResponse = s_type::from_slice(&structures.3).expect("Should be able to deserialize");
-    println!("{:?}, {:?}, {:?}, {:?}", test1, test2, test3, test4);
+    let test1 = s_type::access::<TestMsg>(&structures.0).expect("Should be able to deserialize");
+    let test2= s_type::access::<TestResponse>(&structures.1).expect("Should be able to deserialize");
+    let test3 = s_type::access::<ExpensiveMsg>(&structures.2).expect("Should be able to deserialize");
+    let test4 = s_type::access::<ExpensiveResponse>(&structures.3).expect("Should be able to deserialize");
+  //  println!("{:?}, {:?}, {:?}, {:?}", test1, test2, test3, test4);
 }

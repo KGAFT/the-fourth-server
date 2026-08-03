@@ -102,8 +102,11 @@ async fn main() {
             .dispatch_request(client_req)
             .await
             .expect("Sending request failed");
-        if let Ok(resp) = rx.await {
+        let res =  rx.await;
+        if let Ok(resp) = res{
             println!("Delay {} microseconds", start.elapsed().as_micros());
+        } else if let Err(e) = res {
+            eprintln!("{}", e);
         }
 
         let (tx, rx) = tokio::sync::oneshot::channel();

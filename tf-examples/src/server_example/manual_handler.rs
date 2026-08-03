@@ -21,7 +21,7 @@ pub struct ManualHandler {
 #[async_trait]
 impl Handler for ManualHandler {
     type Codec = Spake2Encrypted;
-
+   // type Codec = LengthDelimitedCodec;
     async fn serve_route(
         &mut self,
         client_meta: (
