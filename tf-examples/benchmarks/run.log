@@ -1,44 +1,80 @@
 bench_tf_plain_server listening on 0.0.0.0:19001
-[tf_plain] conns=1 payload=64B  rps=0  p50=0us p99=0us p99.9=0us max=0us  cpu=0.0%  rss=3.8MB  ok_conns=0/1 errors=1
+[tf_plain] conns=1 payload=64B  rps=53912  p50=12us p99=78us p99.9=156us max=437us  cpu=42.2%  rss=4.0MB  ok_conns=1/1 errors=0
 bench_tf_enc_server listening on 0.0.0.0:19002
-[tf_enc] conns=1 payload=64B  rps=0  p50=0us p99=0us p99.9=0us max=0us  cpu=0.0%  rss=4.3MB  ok_conns=0/1 errors=1
+[tf_enc] conns=1 payload=64B  rps=61909  p50=12us p99=61us p99.9=146us max=587us  cpu=42.7%  rss=4.3MB  ok_conns=1/1 errors=0
 bench_axum_server listening on 0.0.0.0:19003
-[axum] conns=1 payload=64B  rps=75487  p50=12us p99=20us p99.9=43us max=316us  cpu=43.6%  rss=3.9MB  ok_conns=1/1 errors=0
+[axum] conns=1 payload=64B  rps=62777  p50=13us p99=62us p99.9=103us max=912us  cpu=43.4%  rss=3.9MB  ok_conns=1/1 errors=0
 bench_actix_server listening on 0.0.0.0:19004
-[actix] conns=1 payload=64B  rps=69891  p50=12us p99=44us p99.9=110us max=1189us  cpu=28.9%  rss=5.9MB  ok_conns=1/1 errors=0
+[actix] conns=1 payload=64B  rps=56654  p50=13us p99=69us p99.9=186us max=1528us  cpu=29.0%  rss=6.0MB  ok_conns=1/1 errors=0
 bench_lynn_server listening on 0.0.0.0:19005
-[lynn] conns=1 payload=64B  rps=34064  p50=16us p99=289us p99.9=1085us max=42271us  cpu=778.6%  rss=7.4MB  ok_conns=1/1 errors=0
+[lynn] conns=1 payload=64B  rps=29642  p50=18us p99=324us p99.9=1090us max=47455us  cpu=807.4%  rss=7.5MB  ok_conns=1/1 errors=0
 bench_tf_plain_server listening on 0.0.0.0:19001
-[tf_plain] conns=50 payload=64B  rps=0  p50=0us p99=0us p99.9=0us max=0us  cpu=0.0%  rss=4.4MB  ok_conns=0/50 errors=50
+[tf_plain] conns=50 payload=64B  rps=225516  p50=221us p99=311us p99.9=538us max=3201us  cpu=238.0%  rss=7.4MB  ok_conns=50/50 errors=0
 bench_tf_enc_server listening on 0.0.0.0:19002
-[tf_enc] conns=50 payload=64B  rps=0  p50=0us p99=0us p99.9=0us max=0us  cpu=0.0%  rss=4.7MB  ok_conns=0/50 errors=50
+[tf_enc] conns=50 payload=64B  rps=212926  p50=233us p99=353us p99.9=591us max=3077us  cpu=245.4%  rss=8.1MB  ok_conns=50/50 errors=0
 bench_axum_server listening on 0.0.0.0:19003
-[axum] conns=50 payload=64B  rps=298508  p50=134us p99=654us p99.9=1168us max=2405us  cpu=342.7%  rss=8.0MB  ok_conns=50/50 errors=0
+[axum] conns=50 payload=64B  rps=406520  p50=100us p99=444us p99.9=803us max=3027us  cpu=337.4%  rss=7.6MB  ok_conns=50/50 errors=0
 bench_actix_server listening on 0.0.0.0:19004
-[actix] conns=50 payload=64B  rps=639663  p50=62us p99=325us p99.9=672us max=2583us  cpu=453.1%  rss=7.6MB  ok_conns=50/50 errors=0
+[actix] conns=50 payload=64B  rps=602501  p50=68us p99=316us p99.9=695us max=3161us  cpu=461.8%  rss=8.0MB  ok_conns=50/50 errors=0
 bench_lynn_server listening on 0.0.0.0:19005
-[lynn] conns=50 payload=64B  rps=232960  p50=199us p99=820us p99.9=3181us max=43711us  cpu=2135.4%  rss=9.4MB  ok_conns=50/50 errors=0
+[lynn] conns=50 payload=64B  rps=210411  p50=215us p99=1267us p99.9=3195us max=43551us  cpu=2097.3%  rss=9.2MB  ok_conns=50/50 errors=0
 bench_tf_plain_server listening on 0.0.0.0:19001
-[tf_plain] conns=200 payload=64B  rps=0  p50=0us p99=0us p99.9=0us max=0us  cpu=0.0%  rss=5.6MB  ok_conns=0/200 errors=200
+[tf_plain] conns=200 payload=64B  rps=224306  p50=894us p99=1189us p99.9=1499us max=3949us  cpu=236.9%  rss=13.1MB  ok_conns=200/200 errors=0
 bench_tf_enc_server listening on 0.0.0.0:19002
-[tf_enc] conns=200 payload=64B  rps=0  p50=0us p99=0us p99.9=0us max=0us  cpu=0.0%  rss=4.8MB  ok_conns=0/200 errors=200
+[tf_enc] conns=200 payload=64B  rps=212146  p50=940us p99=1319us p99.9=1770us max=2617us  cpu=244.5%  rss=14.4MB  ok_conns=200/200 errors=0
 bench_axum_server listening on 0.0.0.0:19003
-[axum] conns=200 payload=64B  rps=631885  p50=270us p99=1003us p99.9=1769us max=3479us  cpu=409.8%  rss=11.6MB  ok_conns=200/200 errors=0
+[axum] conns=200 payload=64B  rps=604494  p50=288us p99=966us p99.9=1533us max=3263us  cpu=422.1%  rss=11.7MB  ok_conns=200/200 errors=0
 bench_actix_server listening on 0.0.0.0:19004
-[actix] conns=200 payload=64B  rps=803966  p50=215us p99=808us p99.9=1368us max=3825us  cpu=512.0%  rss=10.0MB  ok_conns=200/200 errors=0
-
-thread 'main' (244724) panicked at /rustc/5c49c4f7c8393c861b849441d27f5d40e0f1e33b/library/std/src/io/stdio.rs:1165:9:
-failed printing to stdout: Broken pipe (os error 32)
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[actix] conns=200 payload=64B  rps=740447  p50=236us p99=845us p99.9=1481us max=3919us  cpu=518.4%  rss=10.1MB  ok_conns=200/200 errors=0
 bench_lynn_server listening on 0.0.0.0:19005
-[lynn] conns=200 payload=64B  rps=402337  p50=390us p99=3143us p99.9=4783us max=48895us  cpu=1900.0%  rss=11.8MB  ok_conns=200/200 errors=0
+[lynn] conns=200 payload=64B  rps=407495  p50=393us p99=2889us p99.9=4639us max=46751us  cpu=1923.6%  rss=11.7MB  ok_conns=200/200 errors=0
 bench_tf_plain_server listening on 0.0.0.0:19001
-[tf_plain] conns=1000 payload=64B  rps=0  p50=0us p99=0us p99.9=0us max=0us  cpu=0.0%  rss=10.1MB  ok_conns=0/1000 errors=1000
+[tf_plain] conns=1000 payload=64B  rps=218332  p50=4575us p99=5619us p99.9=7563us max=9791us  cpu=236.2%  rss=37.0MB  ok_conns=1000/1000 errors=0
 bench_tf_enc_server listening on 0.0.0.0:19002
+[tf_enc] conns=1000 payload=64B  rps=202615  p50=4803us p99=6055us p99.9=7427us max=10711us  cpu=242.0%  rss=37.5MB  ok_conns=981/1000 errors=19
 bench_axum_server listening on 0.0.0.0:19003
+[axum] conns=1000 payload=64B  rps=757462  p50=1166us p99=3609us p99.9=4935us max=10687us  cpu=518.7%  rss=32.4MB  ok_conns=1000/1000 errors=0
 bench_actix_server listening on 0.0.0.0:19004
-[actix] conns=1000 payload=64B  rps=797703  p50=1088us p99=3785us p99.9=5135us max=10735us  cpu=569.4%  rss=22.0MB  ok_conns=1000/1000 errors=0
-
-thread 'main' (245688) panicked at /rustc/5c49c4f7c8393c861b849441d27f5d40e0f1e33b/library/std/src/io/stdio.rs:1165:9:
-failed printing to stdout: Broken pipe (os error 32)
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[actix] conns=1000 payload=64B  rps=792884  p50=1099us p99=3779us p99.9=5139us max=12695us  cpu=563.6%  rss=22.2MB  ok_conns=1000/1000 errors=0
+bench_lynn_server listening on 0.0.0.0:19005
+[lynn] conns=1000 payload=64B  rps=669848  p50=896us p99=8247us p99.9=13759us max=55423us  cpu=1589.3%  rss=23.9MB  ok_conns=1000/1000 errors=0
+bench_tf_plain_server listening on 0.0.0.0:19001
+[tf_plain] conns=2000 payload=64B  rps=183444  p50=10679us p99=16079us p99.9=20223us max=20687us  cpu=222.9%  rss=62.8MB  ok_conns=2000/2000 errors=0
+bench_tf_enc_server listening on 0.0.0.0:19002
+[tf_enc] conns=2000 payload=64B  rps=180664  p50=10599us p99=11895us p99.9=12471us max=36287us  cpu=233.7%  rss=63.0MB  ok_conns=1923/2000 errors=77
+bench_axum_server listening on 0.0.0.0:19003
+[axum] conns=2000 payload=64B  rps=710119  p50=2433us p99=8583us p99.9=11959us max=24959us  cpu=519.0%  rss=57.4MB  ok_conns=2000/2000 errors=0
+bench_actix_server listening on 0.0.0.0:19004
+[actix] conns=2000 payload=64B  rps=729068  p50=2241us p99=9855us p99.9=14279us max=26703us  cpu=538.8%  rss=37.4MB  ok_conns=2000/2000 errors=0
+bench_lynn_server listening on 0.0.0.0:19005
+[lynn] conns=2000 payload=64B  rps=728954  p50=1551us p99=13239us p99.9=19967us max=60383us  cpu=1559.6%  rss=38.1MB  ok_conns=1986/2000 errors=14
+bench_tf_plain_server listening on 0.0.0.0:19001
+[tf_plain] conns=3500 payload=64B  rps=177766  p50=19455us p99=26511us p99.9=29823us max=30911us  cpu=218.9%  rss=96.6MB  ok_conns=3500/3500 errors=0
+bench_tf_enc_server listening on 0.0.0.0:19002
+[tf_enc] conns=3500 payload=64B  rps=172433  p50=15119us p99=17519us p99.9=20191us max=48927us  cpu=231.3%  rss=84.2MB  ok_conns=2715/3500 errors=785
+bench_axum_server listening on 0.0.0.0:19003
+[axum] conns=3500 payload=64B  rps=684704  p50=4295us p99=17023us p99.9=24079us max=48735us  cpu=530.6%  rss=93.7MB  ok_conns=3500/3500 errors=0
+bench_actix_server listening on 0.0.0.0:19004
+[actix] conns=3500 payload=64B  rps=711225  p50=3831us p99=21551us p99.9=32591us max=62399us  cpu=551.9%  rss=60.2MB  ok_conns=3500/3500 errors=0
+bench_lynn_server listening on 0.0.0.0:19005
+[lynn] conns=3500 payload=64B  rps=732408  p50=3705us p99=19471us p99.9=30783us max=70015us  cpu=1485.6%  rss=59.8MB  ok_conns=3448/3500 errors=52
+bench_tf_plain_server listening on 0.0.0.0:19001
+[tf_plain] conns=50 payload=65536B  rps=64208  p50=785us p99=1095us p99.9=1418us max=2493us  cpu=215.1%  rss=22.2MB  ok_conns=50/50 errors=0
+bench_tf_enc_server listening on 0.0.0.0:19002
+[tf_enc] conns=50 payload=65536B  rps=20832  p50=2329us p99=4295us p99.9=7783us max=9759us  cpu=235.0%  rss=19.3MB  ok_conns=50/50 errors=0
+bench_axum_server listening on 0.0.0.0:19003
+[axum] conns=50 payload=65536B  rps=171858  p50=257us p99=789us p99.9=1340us max=3819us  cpu=524.7%  rss=26.7MB  ok_conns=50/50 errors=0
+bench_actix_server listening on 0.0.0.0:19004
+[actix] conns=50 payload=65536B  rps=175390  p50=228us p99=1162us p99.9=2213us max=4491us  cpu=702.2%  rss=34.7MB  ok_conns=50/50 errors=0
+bench_lynn_server listening on 0.0.0.0:19005
+[lynn] conns=50 payload=65536B  rps=57  p50=833535us p99=873983us p99.9=873983us max=873983us  cpu=1292.7%  rss=22.0MB  ok_conns=50/50 errors=0
+bench_tf_plain_server listening on 0.0.0.0:19001
+[tf_plain] conns=200 payload=65536B  rps=49334  p50=4079us p99=5479us p99.9=6315us max=7743us  cpu=195.0%  rss=80.1MB  ok_conns=200/200 errors=0
+bench_tf_enc_server listening on 0.0.0.0:19002
+[tf_enc] conns=200 payload=65536B  rps=18885  p50=10351us p99=15591us p99.9=17631us max=19103us  cpu=227.4%  rss=75.8MB  ok_conns=200/200 errors=0
+bench_axum_server listening on 0.0.0.0:19003
+[axum] conns=200 payload=65536B  rps=147319  p50=1238us p99=3203us p99.9=4235us max=7563us  cpu=628.5%  rss=62.7MB  ok_conns=200/200 errors=0
+bench_actix_server listening on 0.0.0.0:19004
+[actix] conns=200 payload=65536B  rps=115540  p50=1520us p99=4995us p99.9=7147us max=14703us  cpu=782.0%  rss=60.2MB  ok_conns=200/200 errors=0
+bench_lynn_server listening on 0.0.0.0:19005
+[lynn] conns=200 payload=65536B  rps=248  p50=831487us p99=840703us p99.9=841727us max=841727us  cpu=1239.9%  rss=48.3MB  ok_conns=200/200 errors=0
