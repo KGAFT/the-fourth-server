@@ -12,6 +12,7 @@ use crate::structures::s_type::StructureType;
 use crate::structures::traffic_proc::TrafficProcessorHolder;
 use crate::structures::transport::Transport;
 
+//@TODO rewrite this s*t to struct with fpn's and appstate inside Arc
 #[async_trait]
 ///The server handler trait. Used for handling data from client/
 pub trait Handler: Send + Sync {
@@ -27,7 +28,7 @@ pub trait Handler: Send + Sync {
     /// 'data' is binary representation of the structure. Call the deserialize from s_type to turn it into base structure.
     async fn serve_route(
         &mut self,
-        /*If request needed, call take() on this option
+        /*If request needed, calla take() on this option
         *if let Some(tx) = meta.1.take(){
         *            tx.send(...).unwrap();
         *        }

@@ -21,6 +21,7 @@ use crate::structures::s_type::ServerErrorEn::InternalError;
 pub struct TfServerRouter<C>
 where
     C: TfCodec {
+    //@TODO get rid of dyn dispatch and RwLock, also replace hashmap with dashmap, maybe?
     routes: Arc<HashMap<TypeTuple, Arc<RwLock<dyn Handler<Codec = C>>>>>,
     routes_text_names: Arc<HashMap<String, u64>>,
     routes_to_add: Vec<(TypeTuple, (Arc<RwLock<dyn Handler<Codec = C>>>, String))>,
