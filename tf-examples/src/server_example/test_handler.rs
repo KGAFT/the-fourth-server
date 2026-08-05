@@ -1,59 +1,76 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+
 use bytes::Bytes;
-use tfserver::async_trait::async_trait;
-use tfserver::codec::length_delimited::LengthDelimitedCodec;
 use tfserver::codec::spake2_encrypted::Spake2Encrypted;
-use tfserver::server::handler::Handler;
+use tfserver::server::handler::{AcceptFuture, Route, ServeFuture};
 use tfserver::structures::s_type;
 use tfserver::structures::s_type::StructureType;
 use tfserver::structures::traffic_proc::TrafficProcessorHolder;
 use tfserver::structures::transport::Transport;
-use tfserver::tokio::sync::{Mutex, RwLock};
 use tfserver::tokio::sync::oneshot::Sender;
 use tfserver::tokio_util::bytes::BytesMut;
 use tfserver::tokio_util::codec::Framed;
+
 use crate::s_type_example::{ExampleSType, TestMsg, TestResponse};
 
-pub struct TestHandler {}
-#[async_trait]
-impl Handler for TestHandler {
-    type Codec = Spake2Encrypted;
+pub struct TestHandlerState;
 
-    async fn serve_route(
-        &mut self,
-        _client_meta: (
-            SocketAddr,
-            &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = Self::Codec>>>>>,
-        ),
-        s_type: Box<dyn StructureType>,
-        mut data: BytesMut,
-    ) -> Result<Bytes, Bytes> {
-        match s_type.as_any().downcast_ref::<ExampleSType>().unwrap(){
+fn serve(
+    _state: &TestHandlerState,
+    _client_meta: (
+        SocketAddr,
+        &mut Option<Sender<Arc<Route<TestHandlerState, Spake2Encrypted>>>>,
+    ),
+    s_type: Box<dyn StructureType>,
+    mut data: BytesMut,
+) -> ServeFuture {
+    Box::pin(async move {
+        match s_type.as_any().downcast_ref::<ExampleSType>().unwrap() {
             ExampleSType::TestMessage => {
-                let mut message = s_type::from_slice::<TestMsg>(data.as_mut()).unwrap();
-                message.message+="Hello from server!";
-                return Ok(Bytes::from_owner(s_type::to_bytes(&message).unwrap()));
-            }
-            ExampleSType::TestResponse => {
-                let mut message = s_type::from_slice::<TestResponse>(data.as_mut()).unwrap();
-                message.another_message+="Hello from server! response";
-                return Ok(Bytes::from_owner(s_type::to_bytes(&message).unwrap()));
-            }
-            _=> {
-                Err("malformed message type".into())
-            }
-        }
-    }
+                let mut message =
+                    s_type::from_slice::<TestMsg>(data.as_mut()).unwrap();
 
-    async fn accept_stream(
-        &mut self,
-        _add: SocketAddr,
-        _stream: (
-            Framed<Transport, Self::Codec>,
-            TrafficProcessorHolder<Self::Codec>,
-        ),
-    ) {
-        todo!()
-    }
+                message.message += "Hello from server!";
+
+                Ok(Bytes::from_owner(
+                    s_type::to_bytes(&message).unwrap(),
+                ))
+            }
+
+            ExampleSType::TestResponse => {
+                let mut message =
+                    s_type::from_slice::<TestResponse>(data.as_mut()).unwrap();
+
+                message.another_message += "Hello from server! response";
+
+                Ok(Bytes::from_owner(
+                    s_type::to_bytes(&message).unwrap(),
+                ))
+            }
+
+            _ => Err(Bytes::from_static(b"malformed message type")),
+        }
+    })
+}
+
+fn accept_stream(
+    _state: &TestHandlerState,
+    _addr: SocketAddr,
+    _stream: (
+        Framed<Transport, Spake2Encrypted>,
+        TrafficProcessorHolder<Spake2Encrypted>,
+    ),
+) -> AcceptFuture {
+    Box::pin(async move {
+        // This handler never accepts streams.
+    })
+}
+
+pub fn create_route() -> Arc<Route<TestHandlerState, Spake2Encrypted>> {
+    Route::new(
+        TestHandlerState,
+        serve,
+        None, // no stream takeover
+    )
 }

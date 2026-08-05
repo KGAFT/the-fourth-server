@@ -10,7 +10,7 @@ use tokio::sync::{RwLock};
 use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::{BytesMut};
 use crate::codec::codec_trait::TfCodec;
-use crate::server::handler::Handler;
+use crate::server::handler::{Route};
 use crate::structures::s_type;
 use crate::structures::s_type::{HandlerMetaAns, HandlerMetaReq, PacketMeta, ServerError, ServerErrorEn, StructureType, SystemSType, TypeContainer, TypeTuple};
 use crate::structures::s_type::ServerErrorEn::InternalError;
@@ -18,21 +18,21 @@ use crate::structures::s_type::ServerErrorEn::InternalError;
 
 ///Tcp server router.
 ///Handles the every data route destination
-pub struct TfServerRouter<C>
+pub struct TfServerRouter<C, S>
 where
-    C: TfCodec {
+    C: TfCodec, S: Send + Sync + 'static, {
     //@TODO get rid of dyn dispatch and RwLock, also replace hashmap with dashmap, maybe?
-    routes: Arc<HashMap<TypeTuple, Arc<RwLock<dyn Handler<Codec = C>>>>>,
+    routes: Arc<HashMap<TypeTuple, Arc<Route<S, C>>>>,
     routes_text_names: Arc<HashMap<String, u64>>,
-    routes_to_add: Vec<(TypeTuple, (Arc<RwLock<dyn Handler<Codec = C>>>, String))>,
+    routes_to_add: Vec<(TypeTuple, ( Arc<Route<S, C>>, String))>,
     router_incremental: u64,
     routes_commited: bool,
     user_s_type: Box<dyn StructureType>,
 }
 
-impl<C> TfServerRouter<C>
+impl<C, S> TfServerRouter<C, S>
 where
-    C: TfCodec {
+    C: TfCodec, S: Send + Sync + 'static, {
     
     ///Returns the new instance of router
     ///
@@ -54,7 +54,7 @@ where
     /// 's_type' handled structure types by current handler.
     pub fn add_route(
         &mut self,
-        handler: Arc<RwLock<dyn Handler<Codec = C>>>,
+        route:  Arc<Route<S, C>>,
         handler_name: String,
         mut s_types: Vec<Box<dyn StructureType>>,
     ) {
@@ -70,7 +70,7 @@ where
             handler_id: self.router_incremental,
         };
 
-        self.routes_to_add.push((types_tupple, (handler, handler_name)));
+        self.routes_to_add.push((types_tupple, (route, handler_name)));
         self.router_incremental += 1;
     }
 
@@ -94,7 +94,7 @@ where
     }
 
 
-    pub fn get_routes(&self) -> Arc<HashMap<TypeTuple, Arc<RwLock<dyn Handler<Codec = C>>>>> {
+    pub fn get_routes(&self) -> Arc<HashMap<TypeTuple, Arc<Route<S, C>>>> {
         self.routes.clone()
     }
 
@@ -103,7 +103,7 @@ where
         &self,
         meta: BytesMut,
         payload: BytesMut,
-        client_meta: (SocketAddr,  &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = C>>>>>),
+        client_meta: (SocketAddr,  &mut Option<Sender<Arc<Route<S, C>>>>),
     ) -> Result<Bytes, ServerError> {
         // Try to deserialize normal PacketMeta
         if let Ok(meta_pack) = s_type::access::<PacketMeta>(&meta) {
@@ -114,11 +114,14 @@ where
             };
 
             let handler = self.routes.get(&key).ok_or(ServerError::new(ServerErrorEn::NoSuchHandler(None)))?;
-            let mut handler_lock = handler.write().await;
-            let res = AssertUnwindSafe(
-                handler_lock.serve_route(client_meta, s_type, payload)
-            )
-                .catch_unwind().await;
+
+            let fut =
+                (handler.serve)(handler.state.as_ref(), client_meta, s_type, payload);
+
+            let res = AssertUnwindSafe(fut)
+                .catch_unwind()
+                .await;
+
             return match res {
                 Ok(data) => match data{
                     Ok(data) => Ok(data),

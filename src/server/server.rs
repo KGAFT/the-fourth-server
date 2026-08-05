@@ -4,15 +4,15 @@ use crate::structures::s_type;
 use crate::structures::s_type::{PacketMeta};
 use std::net::SocketAddr;
 use std::ops::Deref;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::codec::codec_trait::TfCodec;
-use crate::server::handler::Handler;
 use crate::structures::traffic_proc::TrafficProcessorHolder;
 use crate::structures::transport::Transport;
-use futures_util::SinkExt;
+use futures_util::{FutureExt, SinkExt};
 use rkyv::util::AlignedVec;
 use tokio::io;
 use tokio::io::AsyncWriteExt;
@@ -23,16 +23,9 @@ use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::Framed;
+use crate::server::handler::Route;
 
-/// The request channel, used to move out tcp stream out of server control.
-///
-/// When the stream is moved, the server does not own it anymore.
-///
-/// If there is a need to return the stream, only reconnect is available.
-pub type RequestChannel<C> = (
-    Sender<Arc<Mutex<dyn Handler<Codec = C>>>>,
-    Receiver<Arc<Mutex<dyn Handler<Codec = C>>>>,
-);
+
 
 #[derive(Clone)]
 pub enum ServerMode {
@@ -47,11 +40,12 @@ pub enum ServerMode {
 /// `C` is the codec used to encode/decode data.
 ///
 /// Recommended default codec is `LengthDelimitedCodec` from the server codec module.
-pub struct TfServer<C>
+pub struct TfServer<C, S>
 where
     C: TfCodec,
+    S: Send + Sync + 'static,
 {
-    router: Arc<TfServerRouter<C>>,
+    router: Arc<TfServerRouter<C, S>>,
     socket: Arc<TcpListener>,
     shutdown_sig: Arc<Notify>,
     processor: Option<TrafficProcessorHolder<C>>,
@@ -60,16 +54,16 @@ where
     mode: ServerMode,
 }
 
-impl<C> TfServer<C>
+impl<C, S> TfServer<C, S>
 where
-    C: TfCodec,
+    C: TfCodec, S: Send + Sync + 'static
 {
     /// Creates a new server instance bound to `bind_address`.
     ///
     /// Returns an error if the address cannot be bound.
     pub async fn new(
         bind_address: String,
-        router: Arc<TfServerRouter<C>>,
+        router: Arc<TfServerRouter<C, S>>,
         processor: Option<TrafficProcessorHolder<C>>,
         codec: C,
         config: Option<ServerConfig>,
@@ -200,11 +194,11 @@ where
     async fn handle_connection(
         addr: SocketAddr,
         mut stream: Framed<Transport, C>,
-        router: &TfServerRouter<C>,
+        router: &TfServerRouter<C, S>,
         mut processor: TrafficProcessorHolder<C>,
     ) {
         use futures_util::SinkExt;
-        let move_sig = tokio::sync::oneshot::channel::<Arc<RwLock<dyn Handler<Codec = C>>>>();
+        let move_sig = tokio::sync::oneshot::channel::<Arc<Route<S, C>>>();
         let mut move_sig = (Some(move_sig.0), move_sig.1);
         loop {
             let meta_data: Result<Option<BytesMut>, bool> =
@@ -260,11 +254,12 @@ where
             let res = Self::send_message(&mut stream, message, &mut processor).await;
 
             if let Ok(requester) = move_sig.1.try_recv() {
-                requester
-                    .write()
-                    .await
-                    .accept_stream(addr, (stream, processor.clone()))
-                    .await;
+                if let Some(accept) = requester.accept_stream{
+                    let fut = accept(requester.state.as_ref(), addr, (stream, processor.clone()));
+                    let res = AssertUnwindSafe(fut)
+                        .catch_unwind()
+                        .await;
+                }
                 return;
             }
 

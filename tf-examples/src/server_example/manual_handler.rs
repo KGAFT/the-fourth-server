@@ -1,61 +1,70 @@
-use crate::s_type_example::{ExampleSType};
 use std::net::SocketAddr;
-use std::sync::{Arc};
-use tfserver::async_trait::async_trait;
-use tfserver::codec::length_delimited::LengthDelimitedCodec;
+use std::sync::Arc;
+
+use futures_util::SinkExt;
 use tfserver::codec::spake2_encrypted::Spake2Encrypted;
-use tfserver::futures_util::SinkExt;
-use tfserver::server::handler::Handler;
+use tfserver::server::handler::{AcceptFuture, Route, ServeFuture};
 use tfserver::structures::s_type::StructureType;
 use tfserver::structures::traffic_proc::TrafficProcessorHolder;
 use tfserver::structures::transport::Transport;
-use tfserver::tokio::sync::{Mutex, RwLock};
 use tfserver::tokio::sync::oneshot::Sender;
 use tfserver::tokio_util::bytes::{Bytes, BytesMut};
 use tfserver::tokio_util::codec::Framed;
 
-pub struct ManualHandler {
-    pub self_ref: Option<Arc<RwLock<ManualHandler>>>,
-}
+use crate::s_type_example::ExampleSType;
 
-#[async_trait]
-impl Handler for ManualHandler {
-    type Codec = Spake2Encrypted;
-   // type Codec = LengthDelimitedCodec;
-    async fn serve_route(
-        &mut self,
-        client_meta: (
-            SocketAddr,
-            &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = Self::Codec>>>>>,
-        ),
-        s_type: Box<dyn StructureType>,
-        data: BytesMut,
-    ) -> Result<Bytes, Bytes> {
-        match s_type.as_any().downcast_ref::<ExampleSType>().unwrap() {
+pub struct ManualHandlerState;
+
+fn serve(
+    _state: &ManualHandlerState,
+    client_meta: (
+        SocketAddr,
+        &mut Option<Sender<Arc<Route<ManualHandlerState, Spake2Encrypted>>>>,
+    ),
+    route: Arc<Route<ManualHandlerState, Spake2Encrypted>>,
+    s_type: Box<dyn StructureType>,
+    data: BytesMut,
+) -> ServeFuture {
+    Box::pin(async move {
+        match s_type
+            .as_any()
+            .downcast_ref::<ExampleSType>()
+            .unwrap()
+        {
             ExampleSType::ManualHandlerRequest => {
-                if let Some(cli) = client_meta.1.take() {
-                    let _ = cli.send(self.self_ref.as_ref().unwrap().clone());
+                if let Some(tx) = client_meta.1.take() {
+                    let _ = tx.send(route);
                 }
+
                 Ok(data.freeze())
             }
-            _ => {
-                Err("Invalid type in ExampleSType".into())
-            }
-        }
-    }
 
-    async fn accept_stream(
-        &mut self,
-        _add: SocketAddr,
-        mut stream: (
-            Framed<Transport, Self::Codec>,
-            TrafficProcessorHolder<Self::Codec>,
-        ),
-    ) {
+            _ => Err(Bytes::from_static(b"Invalid type in ExampleSType")),
+        }
+    })
+}
+
+fn accept_stream(
+    _state: &ManualHandlerState,
+    _addr: SocketAddr,
+    mut stream: (
+        Framed<Transport, Spake2Encrypted>,
+        TrafficProcessorHolder<Spake2Encrypted>,
+    ),
+) -> AcceptFuture {
+    Box::pin(async move {
         stream
             .0
-            .send("hello from manual handler!".as_bytes().into())
+            .send(Bytes::from_static(b"hello from manual handler!"))
             .await
             .unwrap();
-    }
+    })
+}
+
+pub fn create_route() -> Arc<Route<ManualHandlerState, Spake2Encrypted>> {
+    Route::new(
+        ManualHandlerState,
+        serve,
+        Some(accept_stream),
+    )
 }
