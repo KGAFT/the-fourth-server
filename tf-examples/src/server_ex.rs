@@ -1,10 +1,10 @@
+#![feature(str_as_str)]
+
 mod s_type_example;
 mod server_example;
 
 use crate::s_type_example::ExampleSType;
-use crate::server_example::handler_with_big_payload::BigPayloadHandler;
-use crate::server_example::manual_handler::ManualHandler;
-use crate::server_example::test_handler::TestHandler;
+
 use std::sync::Arc;
 use tfserver::async_trait::async_trait;
 use tfserver::codec::spake2_encrypted::{ServerCredentialProvider, Spake2Encrypted};
@@ -14,6 +14,7 @@ use tfserver::server::server_router::TfServerRouter;
 use tfserver::tokio;
 use tfserver::tokio::sync::{Mutex, RwLock};
 use tfserver::tokio_util::codec::{LengthDelimitedCodec, LengthDelimitedCodecError};
+use crate::server_example::{handler_with_big_payload, test_handler};
 
 pub struct TestServerCredProvider {}
 #[async_trait]
@@ -26,15 +27,10 @@ impl ServerCredentialProvider for TestServerCredProvider {
 pub async fn main() {
     env_logger::init();
 
-    let test_handler = TestHandler {};
-    let big_payload_handler =  Arc::new(RwLock::new(BigPayloadHandler {self_ref: None}));
-    let manual_handler = Arc::new(RwLock::new(ManualHandler { self_ref: None }));
-    manual_handler.write().await.self_ref = Some(manual_handler.clone());
-    big_payload_handler.write().await.self_ref = Some(big_payload_handler.clone());
-    let mut router: TfServerRouter<Spake2Encrypted> =
+    let mut router: TfServerRouter<Spake2Encrypted, ()> =
         TfServerRouter::new(Box::new(ExampleSType::TestResponse));
     router.add_route(
-        Arc::new(RwLock::new(test_handler)),
+        test_handler::create_route(),
         "TEST_HANDLER".to_string(),
         vec![
             Box::new(ExampleSType::TestMessage),
@@ -42,18 +38,14 @@ pub async fn main() {
         ],
     );
     router.add_route(
-       big_payload_handler,
+       handler_with_big_payload::create_route(),
         "BIG_PAYLOAD".to_string(),
         vec![
             Box::new(ExampleSType::ExpensiveMessage),
             Box::new(ExampleSType::ExpensiveResponse),
         ],
     );
-    router.add_route(
-        manual_handler,
-        "MANUAL_HANDLER".to_string(),
-        vec![Box::new(ExampleSType::ManualHandlerRequest)],
-    );
+
 
     router.commit_routes();
     let router = Arc::new(router);

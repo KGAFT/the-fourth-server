@@ -1,30 +1,30 @@
 //! tf (the-fourth-server) echo handler, credential providers and server/client
 //! builders for both the plaintext and SPAKE2-encrypted configurations.
 
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tfserver::codec::codec_trait::TfCodec;
 use tfserver::codec::length_delimited::LengthDelimitedCodec as TfLengthDelimited;
 use tfserver::codec::spake2_encrypted::{
     ClientCredentialProvider, ServerCredentialProvider, Spake2Encrypted,
 };
-use tfserver::rkyv::util::AlignedVec;
-use tfserver::server::handler::Handler;
+use tfserver::server::handler::{AcceptFuture, Route, ServeFuture};
 use tfserver::server::server::{ServerMode, TfServer};
 use tfserver::server::server_router::TfServerRouter;
 use tfserver::structures::s_type::StructureType;
 use tfserver::structures::traffic_proc::TrafficProcessorHolder;
 use tfserver::structures::transport::Transport;
-use tfserver::tokio::sync::RwLock;
 use tfserver::tokio::sync::oneshot::Sender;
 use tfserver::tokio_util::bytes::{Bytes, BytesMut};
 use tfserver::tokio_util::codec::Framed;
 use tfserver::tokio_util::codec::LengthDelimitedCodec as RawLengthDelimited;
 
 use crate::bench::stype::EchoSType;
+
+// Ensure you import the new routing types. Adjust the module path as needed.
 
 /// Frame cap for the plaintext wrapper codec (also bounds the encrypted inner).
 pub const MAX_FRAME: usize = 16 * 1024 * 1024;
@@ -50,64 +50,51 @@ impl ClientCredentialProvider for BenchClientCreds {
     }
 }
 
-/// Echoes the request payload back unchanged. Generic over the codec so the same
-/// handler serves the plaintext and encrypted servers.
-pub struct EchoHandler<C: TfCodec> {
-    _p: PhantomData<fn() -> C>,
+/// Serve function for the echo route.
+fn serve_echo<S: Send + Sync + 'static, C: TfCodec>(
+    _state: &S,
+    _client_meta: (SocketAddr, &mut Option<Sender<Arc<Route<S, C>>>>),
+    _s_type: Box<dyn StructureType>,
+    data: BytesMut,
+) -> ServeFuture {
+    Box::pin(async move { Ok(data.freeze()) })
 }
 
-impl<C: TfCodec> EchoHandler<C> {
-    pub fn new() -> Self {
-        Self { _p: PhantomData }
+/// Accept stream function for the echo route.
+fn accept_echo<S: Send + Sync + 'static, C: TfCodec>(
+    _state: &S,
+    _addr: SocketAddr,
+    _stream: (Framed<Transport, C>, TrafficProcessorHolder<C>),
+) -> AcceptFuture {
+    Box::pin(async move {})
+}
+
+/// Creates the echo route. We use `()` as the state since echo doesn't require any shared state.
+pub fn echo_route<C: TfCodec>() -> Route<(), C> {
+    Route {
+        state: Arc::new(()),
+        serve: serve_echo::<(), C>,
+        accept_stream: Some(accept_echo::<(), C>),
     }
 }
 
-impl<C: TfCodec> Default for EchoHandler<C> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+fn echo_router<C: TfCodec>() -> Arc<TfServerRouter<C, ()>> {
+    let mut router: TfServerRouter<C, ()> = TfServerRouter::new(Box::new(EchoSType::Echo));
 
-#[async_trait]
-impl<C: TfCodec> Handler for EchoHandler<C> {
-    type Codec = C;
-
-    async fn serve_route(
-        &mut self,
-        _client_meta: (
-            SocketAddr,
-            &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = Self::Codec>>>>>,
-        ),
-        _s_type: Box<dyn StructureType>,
-        data: BytesMut,
-    ) -> Result<Bytes, Bytes> {
-        Ok(data.freeze())
-    }
-
-    async fn accept_stream(
-        &mut self,
-        _addr: SocketAddr,
-        _stream: (
-            Framed<Transport, Self::Codec>,
-            TrafficProcessorHolder<Self::Codec>,
-        ),
-    ) {
-    }
-}
-
-fn echo_router<C: TfCodec>() -> Arc<TfServerRouter<C>> {
-    let mut router: TfServerRouter<C> = TfServerRouter::new(Box::new(EchoSType::Echo));
+    // Note: Depending on the exact new signature of `add_route`, you might need to pass
+    // `Arc::new(echo_route::<C>())` or just `echo_route::<C>()`.
     router.add_route(
-        Arc::new(RwLock::new(EchoHandler::<C>::new())),
+        Arc::new(echo_route::<C>()),
         ECHO_HANDLER.to_string(),
         vec![Box::new(EchoSType::Echo)],
     );
+
     router.commit_routes();
     Arc::new(router)
 }
 
 /// Plaintext (LengthDelimitedCodec) echo server.
-pub async fn build_plain_server(bind: String) -> TfServer<TfLengthDelimited> {
+pub async fn build_plain_server(bind: String) -> TfServer<TfLengthDelimited, ()> {
     TfServer::new(
         bind,
         echo_router::<TfLengthDelimited>(),
@@ -116,12 +103,12 @@ pub async fn build_plain_server(bind: String) -> TfServer<TfLengthDelimited> {
         None,
         ServerMode::Tcp,
     )
-    .await
-    .expect("bind tf plain server")
+        .await
+        .expect("bind tf plain server")
 }
 
 /// SPAKE2 + AES-256-GCM encrypted echo server.
-pub async fn build_enc_server(bind: String) -> TfServer<Spake2Encrypted> {
+pub async fn build_enc_server(bind: String) -> TfServer<Spake2Encrypted, ()> {
     let codec = Spake2Encrypted::create_server(
         Arc::new(BenchServerCreds),
         BENCH_SERVER_NAME.to_string(),
@@ -135,8 +122,8 @@ pub async fn build_enc_server(bind: String) -> TfServer<Spake2Encrypted> {
         None,
         ServerMode::Tcp,
     )
-    .await
-    .expect("bind tf enc server")
+        .await
+        .expect("bind tf enc server")
 }
 
 /// Client codec for the plaintext server.

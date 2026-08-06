@@ -13,39 +13,34 @@ use tfserver::tokio_util::codec::Framed;
 
 use crate::s_type_example::ExampleSType;
 
-pub struct ManualHandlerState;
-
+/*
 fn serve(
-    _state: &ManualHandlerState,
+    state: &(),
     client_meta: (
         SocketAddr,
-        &mut Option<Sender<Arc<Route<ManualHandlerState, Spake2Encrypted>>>>,
+        &mut Option<Sender<Arc<Route<(), Spake2Encrypted>>>>,
     ),
-    route: Arc<Route<ManualHandlerState, Spake2Encrypted>>,
     s_type: Box<dyn StructureType>,
-    data: BytesMut,
+    mut data: BytesMut,
 ) -> ServeFuture {
-    Box::pin(async move {
-        match s_type
-            .as_any()
-            .downcast_ref::<ExampleSType>()
-            .unwrap()
-        {
-            ExampleSType::ManualHandlerRequest => {
-                if let Some(tx) = client_meta.1.take() {
-                    let _ = tx.send(route);
-                }
-
-                Ok(data.freeze())
+    match s_type
+        .as_any()
+        .downcast_ref::<ExampleSType>()
+        .unwrap()
+    {
+        ExampleSType::ManualHandlerRequest => {
+            if let Some(tx) = client_meta.1.take() {
+                let _ = tx.send(route);
             }
-
-            _ => Err(Bytes::from_static(b"Invalid type in ExampleSType")),
         }
-    })
+        _ => {}
+    }
+
+        Box::pin(async move {Ok(Bytes::new())})
 }
 
 fn accept_stream(
-    _state: &ManualHandlerState,
+    _state: &(),
     _addr: SocketAddr,
     mut stream: (
         Framed<Transport, Spake2Encrypted>,
@@ -61,10 +56,12 @@ fn accept_stream(
     })
 }
 
-pub fn create_route() -> Arc<Route<ManualHandlerState, Spake2Encrypted>> {
-    Route::new(
-        ManualHandlerState,
+pub fn create_route() -> Arc<Route<(), Spake2Encrypted>> {
+    Arc::new(Route {
+        state: Arc::new(()),
         serve,
-        Some(accept_stream),
-    )
+        accept_stream: Some(accept_stream),
+    })
 }
+
+ */

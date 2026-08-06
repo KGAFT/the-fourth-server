@@ -14,13 +14,12 @@ use tfserver::tokio_util::codec::Framed;
 
 use crate::s_type_example::{ExampleSType, TestMsg, TestResponse};
 
-pub struct TestHandlerState;
 
 fn serve(
-    _state: &TestHandlerState,
+    _state: &(),
     _client_meta: (
         SocketAddr,
-        &mut Option<Sender<Arc<Route<TestHandlerState, Spake2Encrypted>>>>,
+        &mut Option<Sender<Arc<Route<(), Spake2Encrypted>>>>,
     ),
     s_type: Box<dyn StructureType>,
     mut data: BytesMut,
@@ -55,7 +54,7 @@ fn serve(
 }
 
 fn accept_stream(
-    _state: &TestHandlerState,
+    _state: &(),
     _addr: SocketAddr,
     _stream: (
         Framed<Transport, Spake2Encrypted>,
@@ -67,10 +66,10 @@ fn accept_stream(
     })
 }
 
-pub fn create_route() -> Arc<Route<TestHandlerState, Spake2Encrypted>> {
-    Route::new(
-        TestHandlerState,
+pub fn create_route() -> Arc<Route<(), Spake2Encrypted>> {
+    Arc::new(Route {
+        state: Arc::new(()),
         serve,
-        None, // no stream takeover
-    )
+        accept_stream: None, // no stream takeover
+    })
 }
