@@ -20,7 +20,7 @@ use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::Framed;
-use crate::server::handler::{AcceptFn, Route};
+use crate::server::handler::{AcceptFn};
 
 
 
@@ -259,7 +259,7 @@ where
                 return;
             } else if move_sig.0.is_none(){
                 tf_warn!("Move signal gone!, closing connection for {}", addr);
-                stream.close().await.unwrap_or_else(|e| {});
+                stream.close().await.unwrap_or_else(|_| {});
                 return;
             }
 
