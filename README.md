@@ -87,34 +87,46 @@ Two codecs are provided:
 
 ```rust
 use std::sync::Arc;
+use tfserver::codec::spake2_encrypted::Spake2Encrypted;
 use tfserver::server::server::{TfServer, ServerMode};
 use tfserver::server::server_router::TfServerRouter;
 use tfserver::tokio_util::codec::LengthDelimitedCodec;
 
-// 1. Build the router from your #[serve]/#[accept]-annotated routes
-let mut router: TfServerRouter<LengthDelimitedCodec> =
-TfServerRouter::new(Box::new(MyType::Response));
+// 1. Build the router from your #[serve]-annotated routes
+let mut router: TfServerRouter<Spake2Encrypted, ()> =
+    TfServerRouter::new(Box::new(MyType::Response));
 
 router.add_route(
-route.clone(),               // Arc<Route<MyState, LengthDelimitedCodec>>
-"MY_HANDLER".to_string(),
-vec![Box::new(MyType::Request)],
+    route.clone(), // Arc<Route<(), Spake2Encrypted>>
+    "MY_HANDLER".to_string(),
+    vec![
+        Box::new(MyType::Request),
+        Box::new(MyType::Response),
+    ],
 );
+
 router.commit_routes();
+
+let router = Arc::new(router);
 
 // 2. Start the server
 let mut server = TfServer::new(
-"0.0.0.0:9000".to_string(),
-Arc::new(router),
-None,                        // optional TrafficProcessor
-LengthDelimitedCodec::new(),
-None,                        // optional TLS ServerConfig
-ServerMode::Tcp,
-).await?;
+    "0.0.0.0:9000".to_string(),
+    router,
+    None, // optional TrafficProcessor
+    Spake2Encrypted::create_server(
+        Arc::new(MyServerCredProvider {}),
+        "server".to_string(),
+        LengthDelimitedCodec::new(),
+    ),
+    None, // optional TLS ServerConfig
+    ServerMode::Tcp,
+)
+.await?;
 
-let handle = server.start().await;
-handle.await.unwrap();
+server.start().await;
 ```
+
 
 ### Handlers
 
