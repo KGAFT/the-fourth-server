@@ -10,7 +10,6 @@ use futures_util::SinkExt;
 use std::io;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
-use rkyv::util::AlignedVec;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};

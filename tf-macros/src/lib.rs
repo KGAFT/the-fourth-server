@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, FnArg, ItemFn, Pat, PatType, ReturnType};
+use syn::{parse_macro_input, FnArg, ItemFn, PatType, ReturnType};
 
 /// #[serve] -> ServeFn<S, C>
 #[proc_macro_attribute]
@@ -20,12 +20,7 @@ enum Kind {
     Serve,
     Accept,
 }
-fn pat_ident(pt: &PatType) -> &syn::Ident {
-    match &*pt.pat {
-        Pat::Ident(pi) => &pi.ident,
-        _ => panic!("expected simple identifier argument"),
-    }
-}
+
 fn expand(f: ItemFn, kind: Kind) -> TokenStream {
     let ItemFn { attrs, vis, sig, block } = f;
     let name = &sig.ident;

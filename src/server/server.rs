@@ -6,18 +6,15 @@ use std::net::SocketAddr;
 use std::ops::Deref;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-
-use tokio::sync::{Mutex, Notify, RwLock};
+use tokio::sync::Notify;
 
 use crate::codec::codec_trait::TfCodec;
 use crate::structures::traffic_proc::TrafficProcessorHolder;
 use crate::structures::transport::Transport;
 use futures_util::{FutureExt, SinkExt};
-use rkyv::util::AlignedVec;
 use tokio::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
@@ -256,7 +253,7 @@ where
             if let Ok(requester) = move_sig.1.try_recv() {
                 if let Some(accept) = requester.accept_stream{
                     let fut = accept(requester.state.as_ref(), addr, (stream, processor.clone()));
-                    let res = AssertUnwindSafe(fut)
+                    let _ = AssertUnwindSafe(fut)
                         .catch_unwind()
                         .await;
                 }

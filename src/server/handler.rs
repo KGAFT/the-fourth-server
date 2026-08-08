@@ -5,7 +5,6 @@ use crate::structures::transport::Transport;
 use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use std::net::SocketAddr;
-use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::BytesMut;

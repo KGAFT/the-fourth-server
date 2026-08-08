@@ -78,7 +78,7 @@ impl TargetRouter {
 
         let response = wait_for_data(stream)
             .await
-            .map_err(|err| RouterError::ConnectionClosed)?;
+            .map_err(|_| RouterError::ConnectionClosed)?;
 
         let mut response = processor.pre_process_traffic(response).await;
 
