@@ -89,62 +89,80 @@ Two codecs are provided:
 use std::sync::Arc;
 use tfserver::server::server::{TfServer, ServerMode};
 use tfserver::server::server_router::TfServerRouter;
-use tfserver::tokio::sync::RwLock;
 use tfserver::tokio_util::codec::LengthDelimitedCodec;
 
-// 1. Build the router
+// 1. Build the router from your #[serve]/#[accept]-annotated routes
 let mut router: TfServerRouter<LengthDelimitedCodec> =
-    TfServerRouter::new(Box::new(MyType::Response));
+TfServerRouter::new(Box::new(MyType::Response));
 
 router.add_route(
-    Arc::new(RwLock::new(MyHandler {})),
-    "MY_HANDLER".to_string(),
-    vec![Box::new(MyType::Request)],
+route.clone(),               // Arc<Route<MyState, LengthDelimitedCodec>>
+"MY_HANDLER".to_string(),
+vec![Box::new(MyType::Request)],
 );
 router.commit_routes();
 
 // 2. Start the server
 let mut server = TfServer::new(
-    "0.0.0.0:9000".to_string(),
-    Arc::new(router),
-    None,                        // optional TrafficProcessor
-    LengthDelimitedCodec::new(),
-    None,                        // optional TLS ServerConfig
-    ServerMode::Tcp,
+"0.0.0.0:9000".to_string(),
+Arc::new(router),
+None,                        // optional TrafficProcessor
+LengthDelimitedCodec::new(),
+None,                        // optional TLS ServerConfig
+ServerMode::Tcp,
 ).await?;
 
 let handle = server.start().await;
 handle.await.unwrap();
 ```
 
-### Handler
+### Handlers
+
 
 ```rust
-use tfserver::server::handler::Handler;
-use tfserver::async_trait::async_trait;
+use tfserver::{serve, accept};
+use tfserver::structures::s_type;
 
-struct MyHandler;
-
-#[async_trait]
-impl Handler for MyHandler {
-    type Codec = LengthDelimitedCodec;
-
-    async fn serve_route(
-        &mut self,
-        client_meta: (SocketAddr, &mut Option<Sender<Arc<RwLock<dyn Handler<Codec = Self::Codec>>>>>),
-        s_type: Box<dyn StructureType>,
-        data: BytesMut,
-    ) -> Result<Vec<u8>, Vec<u8>> {
-        // deserialize, process, return serialized response
-        let req: MyRequest = tfserver::structures::s_type::from_slice(&data).unwrap();
-        let resp = MyResponse { /* ... */ };
-        Ok(tfserver::structures::s_type::to_vec(&resp).unwrap())
-    }
-
-    async fn accept_stream(&mut self, addr: SocketAddr, stream: (Framed<Transport, Self::Codec>, TrafficProcessorHolder<Self::Codec>)) {
-        // called only if this handler requests stream ownership
-    }
+#[serve]
+async fn serve_route(
+    state: &MyState,
+    addr: SocketAddr,
+    route_tx: &mut Option<Sender<Arc<Route<MyState, LengthDelimitedCodec>>>>,
+    s_type: Box<dyn StructureType>,
+    data: BytesMut,
+) -> Result<Bytes, Bytes> {
+    let req: MyRequest = s_type::from_slice(&data).unwrap();
+    let resp = MyResponse { /* ... */ };
+    Ok(Bytes::from(s_type::to_vec(&resp).unwrap()))
 }
+
+#[accept]
+async fn accept_stream(
+    state: &MyState,
+    addr: SocketAddr,
+    mut framed: Framed<Transport, LengthDelimitedCodec>,
+    holder: TrafficProcessorHolder<LengthDelimitedCodec>,
+) {
+    // called only if this route requests stream ownership
+}
+```
+
+Argument order and shapes are fixed:
+
+| Macro | Signature |
+|-------|-----------|
+| `#[serve]` | `(state: &S, addr: SocketAddr, route_tx: &mut Option<Sender<Arc<Route<S, C>>>>, s_type: Box<dyn StructureType>, data: BytesMut) -> Result<Bytes, Bytes>` |
+| `#[accept]` | `(state: &S, addr: SocketAddr, framed: Framed<Transport, C>, holder: TrafficProcessorHolder<C>) -> ()` |
+
+Each expands to a plain `fn` — no closures, no captured state — so it coerces
+directly to `ServeFn<S, C>` / `AcceptFn<S, C>` and can be registered on a `Route`:
+
+```rust
+let route = Arc::new(Route {
+    state: Arc::new(MyState::default()),
+    serve: serve_route,             // fn pointer, from #[serve]
+    accept_stream: Some(accept_stream), // fn pointer, from #[accept]; None if unused
+});
 ```
 
 ### Client
