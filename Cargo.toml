@@ -37,7 +37,7 @@ spake2 = {version = "0.4", features = ["default"]}
 aes-gcm = "0.10"
 aead = "0.5"
 hkdf = "0.12"
-tf-macros = {path = "tf-macros"}
+tf-macros = {path = "tf-macros", version = "0.1"}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["full"] }
