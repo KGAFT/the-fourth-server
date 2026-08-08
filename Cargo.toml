@@ -1,6 +1,6 @@
 [package]
 name = "the-fourth-server"
-version = "0.3.4"
+version = "0.4.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/KGAFT/the-fourth-server"
@@ -22,7 +22,6 @@ logging = ["dep:log"]
 
 [dependencies]
 log = { version = "0.4", optional = true }
-serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"
 num_enum = "0.7"
 rand = "0.9"
