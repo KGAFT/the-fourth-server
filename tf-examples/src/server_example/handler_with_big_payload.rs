@@ -1,4 +1,4 @@
-use tfserver::server::handler::ServeFuture;
+use tfserver::server::handler::{AcceptFn, ServeFuture};
 
 use tfserver::server::handler::AcceptFuture;
 use std::net::SocketAddr;
@@ -18,12 +18,12 @@ use crate::s_type_example::{ExampleSType, ExpensiveMsg};
 
 #[serve]
 async fn serve_route(
-    state: &(),
+    state: Arc<()>,
     addr: SocketAddr,
-    route_tx: &mut Option<Sender<Arc<Route<(), Spake2Encrypted>>>>,
+    mut route_tx: Option<Sender<(AcceptFn<(), Spake2Encrypted>, Arc<()>)>>,
     structure: Box<dyn StructureType>,
-    bytes: BytesMut,
-) -> Result<Bytes, Bytes> {
+    mut bytes: BytesMut,
+) -> (Result<Bytes, Bytes>, Option<Sender<(AcceptFn<(), Spake2Encrypted>, Arc<()>)>>){
 
         match structure
             .as_any()
@@ -32,28 +32,35 @@ async fn serve_route(
         {
             ExampleSType::ExpensiveMessage => {
                 let mut message =
-                    s_type::from_slice::<ExpensiveMsg>(bytes.as_slice()).unwrap();
+                    s_type::from_slice::<ExpensiveMsg>(bytes.as_mut()).unwrap();
 
                 message.data.sort();
                 
-                
-                Ok(Bytes::from_owner(
+
+                (Ok(Bytes::from_owner(
                     s_type::to_bytes(&message).unwrap(),
-                ))
+                )), route_tx)
             }
 
             ExampleSType::ExpensiveResponse => {
-                Ok(bytes.freeze())
+                /*
+                if let Some(req) = route_tx.take() {
+                    let _ = req.send((accept_stream, state));
+                }
+
+                 */
+
+                (Ok(bytes.freeze()), route_tx)
             }
             
 
-            _ => Err(Bytes::from_static(b"Malformed message type")),
+            _ => (Err(Bytes::from_static(b"Malformed message type")), route_tx),
         }
     }
 
 #[accept]
 async fn accept_stream(
-    state: &(),
+    state: Arc<()>,
     addr: SocketAddr,
     mut framed: Framed<Transport, Spake2Encrypted>,
     holder: TrafficProcessorHolder<Spake2Encrypted>)
@@ -75,7 +82,5 @@ pub fn create_route() -> Arc<Route<(), Spake2Encrypted>> {
         state: Arc::new(()),
 
         serve: serve_route,
-
-        accept_stream: Some(accept_stream),
     })
 }

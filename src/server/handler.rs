@@ -10,20 +10,27 @@ use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::BytesMut;
 use tokio_util::codec::Framed;
 
-pub type ServeFuture = BoxFuture<'static, Result<Bytes, Bytes>>;
-
+pub type ServeFuture<S, C> = BoxFuture<
+'static,
+(Result<Bytes, Bytes>, Option<Sender<(AcceptFn<S, C>, Arc<S>)>>),
+>;
 pub type AcceptFuture = BoxFuture<'static, ()>;
 
+///Your route serve function, accepts appstate, client_meta(addr_info and request for querrying move current stream for manual handling)
+
+
 pub type ServeFn<S, C> = fn(
-    &S,
-    (SocketAddr, &mut Option<Sender<Arc<Route<S, C>>>>),
+    Arc<S>,
+    SocketAddr,
+    Option<Sender<(AcceptFn<S, C>, Arc<S>)>>,
     Box<dyn StructureType>,
     BytesMut,
-) -> ServeFuture;
+) -> ServeFuture<S, C>;
 
 pub type AcceptFn<S, C> =
-    fn(&S, SocketAddr, (Framed<Transport, C>, TrafficProcessorHolder<C>)) -> AcceptFuture;
+    fn(Arc<S>, SocketAddr, (Framed<Transport, C>, TrafficProcessorHolder<C>)) -> AcceptFuture;
 
+///'S' - global AppState structure per project.
 pub struct Route<S, C>
 where
     S: Send + Sync + 'static,
@@ -32,6 +39,4 @@ where
     pub state: Arc<S>,
 
     pub serve: ServeFn<S, C>,
-
-    pub accept_stream: Option<AcceptFn<S, C>>,
 }

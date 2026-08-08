@@ -14,15 +14,13 @@ use tfserver::tokio_util::codec::Framed;
 use crate::s_type_example::ExampleSType;
 
 /*
-fn serve(
-    state: &(),
-    client_meta: (
-        SocketAddr,
-        &mut Option<Sender<Arc<Route<(), Spake2Encrypted>>>>,
-    ),
-    s_type: Box<dyn StructureType>,
-    mut data: BytesMut,
-) -> ServeFuture {
+async fn serve_route(
+    state: Arc<()>,
+    addr: SocketAddr,
+    route_tx: &mut Option<Sender<(AcceptFn<(), Spake2Encrypted>, Arc<()>)>>,
+    structure: Box<dyn StructureType>,
+    mut bytes: BytesMut,
+) -> Result<Bytes, Bytes> {
     match s_type
         .as_any()
         .downcast_ref::<ExampleSType>()
@@ -36,31 +34,32 @@ fn serve(
         _ => {}
     }
 
-        Box::pin(async move {Ok(Bytes::new())})
+    Ok(Bytes::new())
 }
 
-fn accept_stream(
-    _state: &(),
-    _addr: SocketAddr,
-    mut stream: (
-        Framed<Transport, Spake2Encrypted>,
-        TrafficProcessorHolder<Spake2Encrypted>,
-    ),
-) -> AcceptFuture {
-    Box::pin(async move {
-        stream
-            .0
-            .send(Bytes::from_static(b"hello from manual handler!"))
+#[accept]
+async fn accept_stream(
+    state: &(),
+    addr: SocketAddr,
+    mut framed: Framed<Transport, Spake2Encrypted>,
+    holder: TrafficProcessorHolder<Spake2Encrypted>)
+{
+
+        println!("accepted stream, now we break the connection");
+
+        framed
+            .send(Bytes::from_static(b"This will break"))
             .await
             .unwrap();
-    })
-}
+
+        framed.close().await.unwrap();
+    }
+
 
 pub fn create_route() -> Arc<Route<(), Spake2Encrypted>> {
     Arc::new(Route {
         state: Arc::new(()),
         serve,
-        accept_stream: Some(accept_stream),
     })
 }
 

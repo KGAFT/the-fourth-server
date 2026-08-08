@@ -1,4 +1,4 @@
-#![feature(str_as_str)]
+extern crate core;
 
 mod s_type_example;
 mod server_example;

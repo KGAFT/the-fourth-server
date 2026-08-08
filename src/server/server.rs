@@ -20,7 +20,7 @@ use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::Framed;
-use crate::server::handler::Route;
+use crate::server::handler::{AcceptFn, Route};
 
 
 
@@ -195,7 +195,7 @@ where
         mut processor: TrafficProcessorHolder<C>,
     ) {
         use futures_util::SinkExt;
-        let move_sig = tokio::sync::oneshot::channel::<Arc<Route<S, C>>>();
+        let move_sig = tokio::sync::oneshot::channel::<(AcceptFn<S, C>, Arc<S>)>();
         let mut move_sig = (Some(move_sig.0), move_sig.1);
         loop {
             let meta_data: Result<Option<BytesMut>, bool> =
@@ -244,19 +244,22 @@ where
                 payload = payload_opt.unwrap();
             }
             let res = router
-                .serve_packet(meta_data, payload, (addr, &mut move_sig.0))
+                .serve_packet(meta_data, payload, (addr, move_sig.0.take()))
                 .await;
-
-            let message = res.unwrap_or_else(|err| Bytes::from_owner(s_type::to_bytes(&err).unwrap()));
+            move_sig.0 = res.1;
+            let message = res.0.unwrap_or_else(|err| Bytes::from_owner(s_type::to_bytes(&err).unwrap()));
             let res = Self::send_message(&mut stream, message, &mut processor).await;
 
-            if let Ok(requester) = move_sig.1.try_recv() {
-                if let Some(accept) = requester.accept_stream{
-                    let fut = accept(requester.state.as_ref(), addr, (stream, processor.clone()));
+            if let Ok(accept_fn) = move_sig.1.try_recv() {
+               let fut = accept_fn.0(accept_fn.1, addr, (stream, processor.clone()));
                     let _ = AssertUnwindSafe(fut)
                         .catch_unwind()
                         .await;
-                }
+                
+                return;
+            } else if move_sig.0.is_none(){
+                tf_warn!("Move signal gone!, closing connection for {}", addr);
+                stream.close().await.unwrap_or_else(|e| {});
                 return;
             }
 

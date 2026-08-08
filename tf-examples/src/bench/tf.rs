@@ -11,7 +11,7 @@ use tfserver::codec::length_delimited::LengthDelimitedCodec as TfLengthDelimited
 use tfserver::codec::spake2_encrypted::{
     ClientCredentialProvider, ServerCredentialProvider, Spake2Encrypted,
 };
-use tfserver::server::handler::{AcceptFuture, Route, ServeFuture};
+use tfserver::server::handler::{AcceptFn, AcceptFuture, Route, ServeFuture};
 use tfserver::server::server::{ServerMode, TfServer};
 use tfserver::server::server_router::TfServerRouter;
 use tfserver::structures::s_type::StructureType;
@@ -52,21 +52,12 @@ impl ClientCredentialProvider for BenchClientCreds {
 
 /// Serve function for the echo route.
 fn serve_echo<S: Send + Sync + 'static, C: TfCodec>(
-    _state: &S,
-    _client_meta: (SocketAddr, &mut Option<Sender<Arc<Route<S, C>>>>),
+    _state: Arc<S>,
+    _client_meta: SocketAddr, move_sig: Option<Sender<(AcceptFn<S, C>, Arc<S>)>>,
     _s_type: Box<dyn StructureType>,
     data: BytesMut,
-) -> ServeFuture {
-    Box::pin(async move { Ok(data.freeze()) })
-}
-
-/// Accept stream function for the echo route.
-fn accept_echo<S: Send + Sync + 'static, C: TfCodec>(
-    _state: &S,
-    _addr: SocketAddr,
-    _stream: (Framed<Transport, C>, TrafficProcessorHolder<C>),
-) -> AcceptFuture {
-    Box::pin(async move {})
+) -> ServeFuture<S, C> {
+    Box::pin(async move { (Ok(data.freeze()), move_sig) })
 }
 
 /// Creates the echo route. We use `()` as the state since echo doesn't require any shared state.
@@ -74,7 +65,6 @@ pub fn echo_route<C: TfCodec>() -> Route<(), C> {
     Route {
         state: Arc::new(()),
         serve: serve_echo::<(), C>,
-        accept_stream: Some(accept_echo::<(), C>),
     }
 }
 

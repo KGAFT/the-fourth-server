@@ -9,7 +9,7 @@ use futures_util::FutureExt;
 use tokio::sync::oneshot::Sender;
 use tokio_util::bytes::{BytesMut};
 use crate::codec::codec_trait::TfCodec;
-use crate::server::handler::{Route};
+use crate::server::handler::{AcceptFn, Route};
 use crate::structures::s_type;
 use crate::structures::s_type::{HandlerMetaAns, HandlerMetaReq, PacketMeta, ServerError, ServerErrorEn, StructureType, SystemSType, TypeContainer, TypeTuple};
 use crate::structures::s_type::ServerErrorEn::InternalError;
@@ -17,10 +17,10 @@ use crate::structures::s_type::ServerErrorEn::InternalError;
 
 ///Tcp server router.
 ///Handles the every data route destination
+///'S' - AppState structure, each route can have it's own AppState structure, if u need unique AppState per route use enums inside AppState
 pub struct TfServerRouter<C, S>
 where
     C: TfCodec, S: Send + Sync + 'static, {
-    //@TODO get rid of dyn dispatch and RwLock, also replace hashmap with dashmap, maybe?
     routes: Arc<HashMap<TypeTuple, Arc<Route<S, C>>>>,
     routes_text_names: Arc<HashMap<String, u64>>,
     routes_to_add: Vec<(TypeTuple, ( Arc<Route<S, C>>, String))>,
@@ -47,7 +47,7 @@ where
         }
     }
 
-    ///Registers the new handler, for selected structure types
+    ///Registers the new route, for selected structure types
     ///
     /// 'handler_name' must be the same on the client site, used for initial identification. When client sends request to server.
     /// 's_type' handled structure types by current handler.
@@ -97,13 +97,14 @@ where
         self.routes.clone()
     }
 
-    ///Called from server connection task
     pub async fn serve_packet(
         &self,
         meta: BytesMut,
         payload: BytesMut,
-        client_meta: (SocketAddr,  &mut Option<Sender<Arc<Route<S, C>>>>),
-    ) -> Result<Bytes, ServerError> {
+        client_meta: (SocketAddr, Option<Sender<(AcceptFn<S, C>, Arc<S>)>>),
+    ) -> (Result<Bytes, ServerError>, Option<Sender<(AcceptFn<S, C>, Arc<S>)>>) {
+        let (addr, route_tx) = client_meta;
+
         // Try to deserialize normal PacketMeta
         if let Ok(meta_pack) = s_type::access::<PacketMeta>(&meta) {
             let s_type = self.user_s_type.get_deserialize_function().deref()(meta_pack.s_type_req.to_native());
@@ -112,21 +113,31 @@ where
                 handler_id: meta_pack.handler_id.to_native(),
             };
 
-            let handler = self.routes.get(&key).ok_or(ServerError::new(ServerErrorEn::NoSuchHandler(None)))?;
+            let handler = match self.routes.get(&key) {
+                Some(handler) => handler,
+                None => {
+                    return (
+                        Err(ServerError::new(ServerErrorEn::NoSuchHandler(None))),
+                        route_tx,
+                    );
+                }
+            };
 
-            let fut =
-                (handler.serve)(handler.state.as_ref(), client_meta, s_type, payload);
-
-            let res = AssertUnwindSafe(fut)
-                .catch_unwind()
-                .await;
+            let fut = (handler.serve)(handler.state.clone(), addr, route_tx, s_type, payload);
+            let res = AssertUnwindSafe(fut).catch_unwind().await;
 
             return match res {
-                Ok(data) => match data{
-                    Ok(data) => Ok(data),
-                    Err(err) => {Err(ServerError::new(ServerErrorEn::InternalError(Some(Vec::from(err)))))}
+                Ok((data, returned_tx)) => match data {
+                    Ok(data) => (Ok(data), returned_tx),
+                    Err(err) => (
+                        Err(ServerError::new(ServerErrorEn::InternalError(Some(Vec::from(err))))),
+                        returned_tx,
+                    ),
                 },
-                Err(_) => Err(ServerError::new(InternalError(Some("handler died :(".as_bytes().to_vec())))),
+                Err(_) => (
+                    Err(ServerError::new(InternalError(Some("handler died :(".as_bytes().to_vec())))),
+                    None,
+                ),
             };
         }
 
@@ -137,12 +148,12 @@ where
                     s_type: SystemSType::HandlerMetaAns,
                     id: *route_id,
                 };
-                return Ok(Bytes::from_owner(s_type::to_bytes(&meta_ans).unwrap()));
+                return (Ok(Bytes::from_owner(s_type::to_bytes(&meta_ans).unwrap())), route_tx);
             } else {
-                return Err(ServerError::new(ServerErrorEn::NoSuchHandler(None)));
+                return (Err(ServerError::new(ServerErrorEn::NoSuchHandler(None))), route_tx);
             }
         }
 
-        Err(ServerError::new(ServerErrorEn::MalformedMetaInfo(None)))
+        (Err(ServerError::new(ServerErrorEn::MalformedMetaInfo(None))), route_tx)
     }
 }
