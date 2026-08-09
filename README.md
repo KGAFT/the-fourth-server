@@ -42,14 +42,14 @@ Add the dependency:
 
 ```toml
 [dependencies]
-the-fourth-server = "0.3"
+the-fourth-server = "0.4"
 ```
 
 Enable logging (optional):
 
 ```toml
 [dependencies]
-the-fourth-server = { version = "0.3", features = ["logging"] }
+the-fourth-server = { version = "0.4", features = ["logging"] }
 ```
 
 ---
