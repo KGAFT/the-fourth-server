@@ -111,7 +111,10 @@ impl Transport {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn connect(url: &str) -> io::Result<Self> {
-        let (ws_stream, _response) = connect_async(url)
+        // Use connect_async_with_config instead of connect_async.
+        // Arguments: (request, config, disable_nagle)
+        // Setting `disable_nagle` to `true` forces set_nodelay(true) on the underlying TCP socket.
+        let (ws_stream, _response) = tokio_tungstenite::connect_async_with_config(url, None, true)
             .await
             .map_err(|e| io::Error::new(io::ErrorKind::ConnectionAborted, e.to_string()))?;
 
@@ -123,7 +126,6 @@ impl Transport {
             inner: Box::new(WsStreamCompat { reader, writer }),
         })
     }
-
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn accept_websocket(stream: Transport) -> io::Result<Self> {
         let ws_stream = accept_async(stream)
