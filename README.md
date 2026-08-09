@@ -74,7 +74,7 @@ pub enum MyType {
 
 ### Codec
 
-`TfCodec` extends `tokio_util::codec::{Encoder, Decoder}` with an `initial_setup` async method called once per new connection. This is where per-connection negotiation (e.g. the SPAKE2 handshake) happens. You can write your own codec if you need it
+`TfCodec` extends `tokio_util::codec::{Encoder, Decoder}` with an `initial_setup` async method called once per new connection. This is where per-connection negotiation (e.g. the SPAKE2 handshake) happens. You can write your own codec if you need it.
 
 Two codecs are provided:
 
@@ -87,17 +87,16 @@ Two codecs are provided:
 
 ```rust
 use std::sync::Arc;
-use tfserver::codec::spake2_encrypted::Spake2Encrypted;
 use tfserver::server::server::{TfServer, ServerMode};
 use tfserver::server::server_router::TfServerRouter;
 use tfserver::tokio_util::codec::LengthDelimitedCodec;
 
 // 1. Build the router from your #[serve]-annotated routes
-let mut router: TfServerRouter<Spake2Encrypted, ()> =
+let mut router: TfServerRouter<LengthDelimitedCodec, ()> =
     TfServerRouter::new(Box::new(MyType::Response));
 
 router.add_route(
-    route.clone(), // Arc<Route<(), Spake2Encrypted>>
+    route.clone(), // Arc<Route<(), LengthDelimitedCodec>>
     "MY_HANDLER".to_string(),
     vec![
         Box::new(MyType::Request),
@@ -114,11 +113,7 @@ let mut server = TfServer::new(
     "0.0.0.0:9000".to_string(),
     router,
     None, // optional TrafficProcessor
-    Spake2Encrypted::create_server(
-        Arc::new(MyServerCredProvider {}),
-        "server".to_string(),
-        LengthDelimitedCodec::new(),
-    ),
+    LengthDelimitedCodec::new(),
     None, // optional TLS ServerConfig
     ServerMode::Tcp,
 )
@@ -127,30 +122,35 @@ let mut server = TfServer::new(
 server.start().await;
 ```
 
-
 ### Handlers
-
 
 ```rust
 use tfserver::{serve, accept};
 use tfserver::structures::s_type;
+use tfserver::structures::s_type::StructureType;
+use tfserver::server::handler::{AcceptFn, Route};
+use tfserver::tokio::sync::oneshot::Sender;
+use tfserver::tokio_util::bytes::{Bytes, BytesMut};
+use tfserver::tokio_util::codec::LengthDelimitedCodec;
+use std::sync::Arc;
+use std::net::SocketAddr;
 
 #[serve]
 async fn serve_route(
-    state: &MyState,
+    state: Arc<MyState>,
     addr: SocketAddr,
-    route_tx: &mut Option<Sender<Arc<Route<MyState, LengthDelimitedCodec>>>>,
+    route_tx: Option<Sender<(AcceptFn<MyState, LengthDelimitedCodec>, Arc<MyState>)>>,
     s_type: Box<dyn StructureType>,
-    data: BytesMut,
-) -> Result<Bytes, Bytes> {
-    let req: MyRequest = s_type::from_slice(&data).unwrap();
+    mut data: BytesMut,
+) -> (Result<Bytes, Bytes>, Option<Sender<(AcceptFn<MyState, LengthDelimitedCodec>, Arc<MyState>)>>) {
+    let req: MyRequest = s_type::from_slice::<MyRequest>(data.as_mut()).unwrap();
     let resp = MyResponse { /* ... */ };
-    Ok(Bytes::from(s_type::to_vec(&resp).unwrap()))
+    (Ok(Bytes::from_owner(s_type::to_bytes(&resp).unwrap())), route_tx)
 }
 
 #[accept]
 async fn accept_stream(
-    state: &MyState,
+    state: Arc<MyState>,
     addr: SocketAddr,
     mut framed: Framed<Transport, LengthDelimitedCodec>,
     holder: TrafficProcessorHolder<LengthDelimitedCodec>,
@@ -163,11 +163,10 @@ Argument order and shapes are fixed:
 
 | Macro | Signature |
 |-------|-----------|
-| `#[serve]` | `(state: &S, addr: SocketAddr, route_tx: &mut Option<Sender<Arc<Route<S, C>>>>, s_type: Box<dyn StructureType>, data: BytesMut) -> Result<Bytes, Bytes>` |
-| `#[accept]` | `(state: &S, addr: SocketAddr, framed: Framed<Transport, C>, holder: TrafficProcessorHolder<C>) -> ()` |
+| `#[serve]` | `(state: Arc<S>, addr: SocketAddr, route_tx: Option<Sender<(AcceptFn<S, C>, Arc<S>)>>, s_type: Box<dyn StructureType>, data: BytesMut) -> (Result<Bytes, Bytes>, Option<Sender<(AcceptFn<S, C>, Arc<S>)>>)` |
+| `#[accept]` | `(state: Arc<S>, addr: SocketAddr, framed: Framed<Transport, C>, holder: TrafficProcessorHolder<C>) -> ()` |
 
-Each expands to a plain `fn` — no closures, no captured state — so it coerces
-directly to `ServeFn<S, C>` / `AcceptFn<S, C>` and can be registered on a `Route`:
+Each expands to a plain `fn` — no closures, no captured state — so it coerces directly to `ServeFn<S, C>` / `AcceptFn<S, C>` and can be registered on a `Route`:
 
 ```rust
 let route = Arc::new(Route {
@@ -215,7 +214,10 @@ let response_bytes = rx.await.unwrap();
 **Server side:**
 
 ```rust
+use std::sync::Arc;
+use tfserver::async_trait::async_trait;
 use tfserver::codec::spake2_encrypted::{Spake2Encrypted, ServerCredentialProvider};
+use tfserver::tokio_util::codec::LengthDelimitedCodec;
 
 struct MyCredProvider;
 
@@ -237,7 +239,10 @@ let codec = Spake2Encrypted::create_server(
 **Client side:**
 
 ```rust
+use std::sync::Arc;
+use tfserver::async_trait::async_trait;
 use tfserver::codec::spake2_encrypted::{Spake2Encrypted, ClientCredentialProvider};
+use tfserver::tokio_util::codec::LengthDelimitedCodec;
 
 struct MyClientCreds;
 
@@ -289,6 +294,3 @@ Working examples are in the `tf-examples/` workspace member:
 | `server_ex.rs` | WebSocket server with SPAKE2 encryption and three handlers |
 | `client_ex.rs` | Client sending test and large-payload requests |
 | `s_type_ex.rs` | Example structure-type enum definition |
-
----
-
