@@ -12,7 +12,7 @@ use tokio::net::TcpStream;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio_rustls::{client::TlsStream as ClientTlsStream, server::TlsStream as ServerTlsStream};
 #[cfg(not(target_arch = "wasm32"))]
-use tokio_tungstenite::{accept_async, connect_async};
+use tokio_tungstenite::{accept_async};
 
 
 pub struct Transport {

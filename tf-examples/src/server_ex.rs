@@ -51,7 +51,7 @@ pub async fn main() {
     let router = Arc::new(router);
 
     let mut server = TfServer::new(
-        "0.0.0.0:9973".to_string(),
+        "127.0.0.1:9973".to_string(),
         router,
         None,
         
@@ -61,11 +61,11 @@ pub async fn main() {
             LengthDelimitedCodec::new(),
         ),
         None,
-        Tcp,
+        WebSocket,
     )
     .await
     .expect("Failed to create server");
-    server.start().await;
-    tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+    server.start().await.await;
+
     server.send_stop();
 }

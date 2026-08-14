@@ -1,6 +1,6 @@
 [package]
 name = "the-fourth-server"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/KGAFT/the-fourth-server"
@@ -49,6 +49,7 @@ tokio-rustls = "0.26"
 tokio = { version = "1", default-features = false, features = ["sync", "macros", "io-util", "rt", "time"] }
 getrandom = { version = "0.2", features = ["js"] }
 getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+wasm-bindgen-futures = "0.4.77"
 
 [profile.release]
 opt-level = 3

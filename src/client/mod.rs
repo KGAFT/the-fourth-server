@@ -181,14 +181,41 @@ impl ClientConnect {
         let mut processor = processor.unwrap_or_else(TrafficProcessorHolder::new);
         let mut router = TargetRouter::new();
 
+        #[cfg(not(target_arch = "wasm32"))]
         tokio::spawn(async move {
             while let Some(request) = rx.recv().await {
                 if let Err(err) =
-                    Self::process_request(request, &mut socket, &mut processor, &mut router).await
+                    Self::process_request(
+                        request,
+                        &mut socket,
+                        &mut processor,
+                        &mut router,
+                    )
+                        .await
                 {
                     tf_warn!("Client request failed: {:?}", err);
                 }
             }
+
+            tf_debug!("Client connection loop ended");
+        });
+
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            while let Some(request) = rx.recv().await {
+                if let Err(err) =
+                    Self::process_request(
+                        request,
+                        &mut socket,
+                        &mut processor,
+                        &mut router,
+                    )
+                        .await
+                {
+                    tf_warn!("Client request failed: {:?}", err);
+                }
+            }
+
             tf_debug!("Client connection loop ended");
         });
     }
