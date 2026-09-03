@@ -1,6 +1,6 @@
 [package]
 name = "the-fourth-server"
-version = "0.4.3"
+version = "0.4.4"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/KGAFT/the-fourth-server"
@@ -25,7 +25,7 @@ log = { version = "0.4", optional = true }
 sha2 = "0.10"
 num_enum = "0.7"
 rand = "0.9"
-rkyv = { version = "0.8", features = ["unaligned"] }
+rkyv = { version = "0.8", features = ["unaligned", "bytes-1"] }
 tokio-util = {version = "0.7", features = ["codec"]}
 futures-util = { version = "0.3", features = ["sink", "io", "tokio-io", "futures-io", "io-compat"] }
 async-trait = { version = "0.1" }
