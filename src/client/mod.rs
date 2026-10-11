@@ -2,33 +2,37 @@ pub mod target_router;
 
 use crate::client::target_router::TargetRouter;
 use crate::log_macros::{tf_debug, tf_info, tf_warn};
-use crate::structures::s_type;
-use crate::structures::s_type::{PacketMeta, StructureType, SystemSType};
-use crate::structures::traffic_proc::TrafficProcessorHolder;
-use crate::structures::transport::Transport;
+use the_fourth_utils::structures::s_type;
+use the_fourth_utils::structures::s_type::{PacketMeta, StructureType, SystemSType};
+use the_fourth_utils::structures::traffic_proc::TrafficProcessorHolder;
+use the_fourth_utils::structures::transport::Transport;
 use futures_util::SinkExt;
 use std::io;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "tls", not(target_arch = "wasm32")))]
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::mpsc;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "tls", not(target_arch = "wasm32")))]
 use tokio_rustls::TlsConnector;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "tls", not(target_arch = "wasm32")))]
 use tokio_rustls::rustls::ClientConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::Framed;
-use crate::codec::codec_trait::TfCodec;
+use the_fourth_utils::codec::codec_trait::TfCodec;
 
 #[derive(Clone)]
 pub enum ClientMode {
     /// Raw TCP, optionally wrapped in TLS
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(feature = "tls", not(target_arch = "wasm32")))]
     Tcp { client_config: Option<ClientConfig> },
+    /// Raw TCP (TLS support requires the `tls` feature)
+    #[cfg(all(not(feature = "tls"), not(target_arch = "wasm32")))]
+    Tcp,
     /// WebSocket — for environments without raw TCP access (e.g. WASM)
     /// `url` is the full ws:// or wss:// URL, e.g. "wss://example.com:9000/ws"
+    #[cfg(feature = "websocket")]
     WebSocket { url: String },
 }
 
@@ -133,13 +137,14 @@ impl ClientConnect {
         Ok(Self { tx })
     }
 
+    #[cfg_attr(not(feature = "tls"), allow(unused_variables))]
     async fn connect(
         server_name: String,
         connection_dest: String,
         mode: &ClientMode,
     ) -> Result<Transport, ClientError> {
         match mode {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(all(feature = "tls", not(target_arch = "wasm32")))]
             ClientMode::Tcp { client_config } => {
                 let socket = TcpStream::connect(&connection_dest).await?;
                 socket.set_nodelay(true)?;
@@ -159,6 +164,14 @@ impl ClientConnect {
                 }
             }
 
+            #[cfg(all(not(feature = "tls"), not(target_arch = "wasm32")))]
+            ClientMode::Tcp => {
+                let socket = TcpStream::connect(&connection_dest).await?;
+                socket.set_nodelay(true)?;
+                Ok(Transport::plain(socket))
+            }
+
+            #[cfg(feature = "websocket")]
             ClientMode::WebSocket { url } => {
                 Transport::connect(url).await.map_err(|e| ClientError::Tls(e.to_string()))
             }

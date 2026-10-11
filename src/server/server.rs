@@ -1,22 +1,24 @@
 use crate::log_macros::{tf_debug, tf_error, tf_info, tf_warn};
 use crate::server::server_router::TfServerRouter;
-use crate::structures::s_type;
-use crate::structures::s_type::{PacketMeta};
+use the_fourth_utils::structures::s_type;
+use the_fourth_utils::structures::s_type::{PacketMeta};
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::sync::Notify;
 
-use crate::codec::codec_trait::TfCodec;
-use crate::structures::traffic_proc::TrafficProcessorHolder;
-use crate::structures::transport::Transport;
+use the_fourth_utils::codec::codec_trait::TfCodec;
+use the_fourth_utils::structures::traffic_proc::TrafficProcessorHolder;
+use the_fourth_utils::structures::transport::Transport;
 use futures_util::{FutureExt, SinkExt};
 use tokio::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
+#[cfg(feature = "tls")]
 use tokio_rustls::TlsAcceptor;
+#[cfg(feature = "tls")]
 use tokio_rustls::rustls::ServerConfig;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::Framed;
@@ -29,6 +31,7 @@ pub enum ServerMode {
     /// Plain TCP or TLS
     Tcp,
     /// WebSocket upgrade over plain TCP or TLS
+    #[cfg(feature = "websocket")]
     WebSocket,
 }
 
@@ -47,6 +50,7 @@ where
     shutdown_sig: Arc<Notify>,
     processor: Option<TrafficProcessorHolder<C>>,
     codec: C,
+    #[cfg(feature = "tls")]
     config: Option<ServerConfig>,
     mode: ServerMode,
 }
@@ -58,12 +62,14 @@ where
     /// Creates a new server instance bound to `bind_address`.
     ///
     /// Returns an error if the address cannot be bound.
+    ///
+    /// `config` (TLS server config) is only present with the `tls` feature.
     pub async fn new(
         bind_address: String,
         router: Arc<TfServerRouter<C, S>>,
         processor: Option<TrafficProcessorHolder<C>>,
         codec: C,
-        config: Option<ServerConfig>,
+        #[cfg(feature = "tls")] config: Option<ServerConfig>,
         mode: ServerMode,
     ) -> Result<Self, io::Error> {
         let socket = TcpListener::bind(&bind_address).await.map_err(|e| {
@@ -77,6 +83,7 @@ where
             shutdown_sig: Arc::new(Notify::new()),
             processor,
             codec,
+            #[cfg(feature = "tls")]
             config,
             mode,
         })
@@ -97,6 +104,7 @@ where
             TrafficProcessorHolder::new()
         };
         let codec = self.codec.clone();
+        #[cfg(feature = "tls")]
         let config = self.config.clone();
         let mode = self.mode.clone();
 
@@ -110,7 +118,13 @@ where
                                 let _ = stream.set_nodelay(true);
                                 let codec = codec.clone();
                                 let mode = mode.clone();
-                                let transport = Self::initial_accept(stream, config.clone(), codec, &mode).await;
+                                let transport = Self::initial_accept(
+                                    stream,
+                                    #[cfg(feature = "tls")]
+                                    config.clone(),
+                                    codec,
+                                    &mode,
+                                ).await;
 
                                 if let Some(mut transport) = transport {
                                     if processor.initial_connect(&mut transport.0).await {
@@ -146,10 +160,13 @@ where
 
     async fn initial_accept(
         stream: TcpStream,
-        config: Option<ServerConfig>,
+        #[cfg(feature = "tls")] config: Option<ServerConfig>,
         mut codec_setup: C,
         mode: &ServerMode,
     ) -> Option<(Transport, C)> {
+        #[cfg(not(feature = "tls"))]
+        let transport = Transport::plain(stream);
+        #[cfg(feature = "tls")]
         let transport = match &config {
             None => Transport::plain(stream),
             Some(cfg) => {
@@ -166,6 +183,7 @@ where
 
         let mut transport = match mode {
             ServerMode::Tcp => transport,
+            #[cfg(feature = "websocket")]
             ServerMode::WebSocket => match Transport::accept_websocket(transport).await {
                 Ok(ws_stream) => ws_stream,
                 Err(e) => {

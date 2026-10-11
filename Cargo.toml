@@ -1,11 +1,11 @@
 [package]
 name = "the-fourth-server"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/KGAFT/the-fourth-server"
 categories = ["asynchronous", "network-programming", "web-programming"]
-keywords = ["tcp", "bincode", "tokio", "asynchronous", "binary"]
+keywords = ["tcp", "rkyv", "tokio", "asynchronous", "binary"]
 readme = "README.md"
 description = "A lightweight tcp server/client pair for network programming"
 documentation = "https://docs.rs/the-fourth-server"
@@ -16,34 +16,23 @@ path = "src/lib.rs"
 crate-type = ["rlib"]
 
 [features]
+full = ["logging", "tls", "websocket"]
 default = ["logging"]
 logging = ["dep:log"]
+tls = ["dep:tokio-rustls", "the-fourth-utils/tls"]
+websocket = ["the-fourth-utils/websocket"]
 
 
 [dependencies]
 log = { version = "0.4", optional = true }
-sha2 = "0.10"
-num_enum = "0.7"
-rand = "0.9"
-rkyv = { version = "0.8", features = ["unaligned", "bytes-1"] }
 tokio-util = {version = "0.7", features = ["codec"]}
 futures-util = { version = "0.3", features = ["sink", "io", "tokio-io", "futures-io", "io-compat"] }
-async-trait = { version = "0.1" }
-bytes = "1.11"
-ws_stream_wasm = "0.7"
-pin-project = "1"
-futures-io = "0.3.32"
-spake2 = {version = "0.4", features = ["default"]}
-aes-gcm = "0.10"
-aead = "0.5"
-hkdf = "0.12"
+the-fourth-utils = {version = "0.1", features = ["codec", "structure-type"]}
 tf-macros = {version = "0.1"}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = "0.29"
-async-tungstenite = "0.34"
-tokio-rustls = "0.26"
+tokio = { version = "1", features = ["io-std", "io-util", "rt", "time", "sync", "net", "macros"] }
+tokio-rustls = { version = "0.26", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "1", default-features = false, features = ["sync", "macros", "io-util", "rt", "time"] }
